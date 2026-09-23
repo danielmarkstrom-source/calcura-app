@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { calcProjectDisplay, DEFAULT_COEF, type Coef, type MaterialRow } from "@/lib/calc";
+import { calcProjectDisplay, deepMergeCoef, DEFAULT_COEF, OVERRIDE_FIELDS, type Coef, type CoefOverrides, type MaterialRow } from "@/lib/calc";
 
 export type ActionState = { error?: string; success?: boolean } | undefined;
 
@@ -77,6 +77,47 @@ export async function inviteColleague(_prevState: ActionState, formData: FormDat
 
   const orgId = await requireOrgId(supabase);
   const { error } = await supabase.from("org_invites").insert({ org_id: orgId, email, invited_by: user!.id });
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings");
+  return { success: true };
+}
+
+/**
+ * Uppdaterar organisationens globala kalkylinställningar (kategoripriser, marktypsfaktor,
+ * massberäkning m.m.). Fälten kommer från lib/calc.ts:s OVERRIDE_FIELDS - samma lista som
+ * driver den (ännu inte porterade) projektspecifika override-sektionen i piloten, så
+ * global-formuläret och det framtida per-projekt-formuläret delar en och samma källa.
+ */
+export async function updateCoef(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const supabase = await createClient();
+  const orgId = await requireOrgId(supabase);
+
+  const { data: settingsRow } = await supabase.from("org_settings").select("coef").eq("org_id", orgId).maybeSingle();
+  const currentCoef: Coef = { ...DEFAULT_COEF, ...((settingsRow?.coef as object) || {}) };
+
+  const updates: Record<string, unknown> = {};
+  for (const f of OVERRIDE_FIELDS) {
+    const raw = formData.get(f.path);
+    if (raw === null || raw === "") continue;
+    const num = Number(raw);
+    if (Number.isNaN(num)) continue;
+    const [group, key] = f.path.split(".");
+    if (key === undefined) {
+      updates[group] = num;
+    } else {
+      updates[group] = { ...((updates[group] as object) || {}), [key]: num };
+    }
+  }
+
+  const merged: Coef = {
+    ...deepMergeCoef(currentCoef, updates as CoefOverrides),
+    calibrationEnabled: formData.get("calibrationEnabled") === "on",
+  };
+
+  const { error } = await supabase
+    .from("org_settings")
+    .upsert({ org_id: orgId, coef: merged, updated_at: new Date().toISOString() });
   if (error) return { error: error.message };
 
   revalidatePath("/settings");
