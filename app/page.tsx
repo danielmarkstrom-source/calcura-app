@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatKr } from "@/lib/calc";
-import LogoutButton from "@/components/LogoutButton";
+import AppHeader from "@/components/AppHeader";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -37,18 +37,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-slate-50">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Calcura</div>
-          <div className="text-xs text-slate-500">{orgName ?? "Din organisation"}</div>
-        </div>
-        <nav className="flex items-center gap-4 text-sm">
-          <Link href="/settings" className="text-slate-600 hover:text-slate-900">
-            Inställningar
-          </Link>
-          <LogoutButton />
-        </nav>
-      </header>
+      <AppHeader orgName={orgName} active="/" />
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-8">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-lg font-semibold text-slate-900">Projekt</h1>

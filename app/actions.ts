@@ -83,6 +83,69 @@ export async function inviteColleague(_prevState: ActionState, formData: FormDat
   return { success: true };
 }
 
+/** Lägger till en rad i materialdatabasen. */
+export async function addMaterialRow(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const supabase = await createClient();
+  const orgId = await requireOrgId(supabase);
+
+  const slag = String(formData.get("slag") || "");
+  const material = String(formData.get("material") || "");
+  const dimension = Number(formData.get("dimension") || 0);
+  const enhet = String(formData.get("enhet") || "m");
+  const krPerM = Number(formData.get("krPerM") || 0);
+  const co2PerMRaw = formData.get("co2PerM");
+  const co2PerM = co2PerMRaw ? Number(co2PerMRaw) : null;
+  if (!slag || !material || !dimension) return { error: "Fyll i ledningsslag, material och dimension." };
+
+  const { error } = await supabase.from("material_rows").insert({
+    org_id: orgId,
+    slag,
+    material,
+    dimension,
+    kr_per_m: krPerM,
+    co2_per_m: co2PerM,
+    enhet,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/material");
+  return { success: true };
+}
+
+/** Uppdaterar en befintlig materialrad. */
+export async function updateMaterialRow(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const supabase = await createClient();
+  const orgId = await requireOrgId(supabase);
+
+  const id = String(formData.get("id") || "");
+  const slag = String(formData.get("slag") || "");
+  const material = String(formData.get("material") || "");
+  const dimension = Number(formData.get("dimension") || 0);
+  const enhet = String(formData.get("enhet") || "m");
+  const krPerM = Number(formData.get("krPerM") || 0);
+  const co2PerMRaw = formData.get("co2PerM");
+  const co2PerM = co2PerMRaw ? Number(co2PerMRaw) : null;
+  if (!id || !slag || !material || !dimension) return { error: "Fyll i ledningsslag, material och dimension." };
+
+  const { error } = await supabase
+    .from("material_rows")
+    .update({ slag, material, dimension, kr_per_m: krPerM, co2_per_m: co2PerM, enhet })
+    .eq("id", id)
+    .eq("org_id", orgId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/material");
+  redirect("/material");
+}
+
+/** Tar bort en materialrad. Bindas med radens id: deleteMaterialRow.bind(null, row.id). */
+export async function deleteMaterialRow(id: string) {
+  const supabase = await createClient();
+  const orgId = await requireOrgId(supabase);
+  await supabase.from("material_rows").delete().eq("id", id).eq("org_id", orgId);
+  revalidatePath("/material");
+}
+
 /**
  * Minimal första version av "skapa projekt" - en sträcka. Fler fält (fler sträckor,
  * servis/intrång/besiktning, massberäkning, projektspecifika inställningar) kommer i
