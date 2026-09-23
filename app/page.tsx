@@ -52,12 +52,14 @@ export default async function DashboardPage() {
         ) : (
           <ul className="divide-y divide-slate-200 rounded-md border border-slate-200 bg-white">
             {projects.map((p) => (
-              <li key={p.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                <div>
-                  <div className="font-medium text-slate-900">{p.namn || "Namnlöst projekt"}</div>
-                  <div className="text-xs text-slate-500">{p.status === "avslutat" ? "Avslutat" : "Pågående"}</div>
-                </div>
-                <div className="font-mono text-slate-700">{formatKr(p.prognos_total || 0)}</div>
+              <li key={p.id}>
+                <Link href={`/projects/${p.id}`} className="flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50">
+                  <div>
+                    <div className="font-medium text-slate-900">{p.namn || "Namnlöst projekt"}</div>
+                    <div className="text-xs text-slate-500">{p.status === "avslutat" ? "Avslutat" : "Pågående"}</div>
+                  </div>
+                  <div className="font-mono text-slate-700">{formatKr(p.prognos_total || 0)}</div>
+                </Link>
               </li>
             ))}
           </ul>

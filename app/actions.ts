@@ -224,3 +224,33 @@ export async function createProject(formData: FormData) {
   revalidatePath("/");
   redirect("/");
 }
+
+/** Registrerar faktisk slutkostnad och markerar projektet avslutat. */
+export async function saveUtfall(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const supabase = await createClient();
+  const orgId = await requireOrgId(supabase);
+
+  const id = String(formData.get("id") || "");
+  const utfall = Number(formData.get("utfall") || 0);
+  if (!id || !utfall) return { error: "Ange en slutkostnad." };
+
+  const { error } = await supabase
+    .from("projects")
+    .update({ utfall, status: "avslutat" })
+    .eq("id", id)
+    .eq("org_id", orgId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/projects/${id}`);
+  revalidatePath("/");
+  return { success: true };
+}
+
+/** Tar bort ett projekt. Bindas med projektets id: deleteProject.bind(null, id). */
+export async function deleteProject(id: string) {
+  const supabase = await createClient();
+  const orgId = await requireOrgId(supabase);
+  await supabase.from("projects").delete().eq("id", id).eq("org_id", orgId);
+  revalidatePath("/");
+  redirect("/");
+}
