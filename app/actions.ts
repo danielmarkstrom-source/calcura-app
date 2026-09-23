@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -8,26 +7,37 @@ import { calcProjectDisplay, DEFAULT_COEF, type Coef, type MaterialRow } from "@
 
 export type ActionState = { error?: string; success?: boolean } | undefined;
 
-async function getOrigin() {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  return `${proto}://${host}`;
-}
+// E-post + lösenord, inget mejlsteg (Supabase-projektets "Confirm email" är avstängt -
+// se arbetslogg.md). Bara den som redan har en giltig inbjudan (org_invites) hamnar i en
+// befintlig organisation vid kontoskapande - annars skapas en ny åt dem (handle_new_user-
+// triggern i supabase/migrations/0001_init.sql), så ett öppet konto ger ingen åtkomst
+// till någon annans data.
 
-/** Skickar en magisk inloggningslänk till mejladressen. */
-export async function login(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+/** Skapar ett nytt konto (e-post + lösenord) och loggar in direkt. */
+export async function signup(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const email = String(formData.get("email") || "").trim();
-  if (!email) return { error: "Ange en mejladress." };
+  const password = String(formData.get("password") || "");
+  if (!email || !password) return { error: "Ange både mejladress och lösenord." };
+  if (password.length < 6) return { error: "Lösenordet måste vara minst 6 tecken." };
 
   const supabase = await createClient();
-  const origin = await getOrigin();
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: `${origin}/auth/callback` },
-  });
+  const { error } = await supabase.auth.signUp({ email, password });
   if (error) return { error: error.message };
-  return { success: true };
+
+  redirect("/");
+}
+
+/** Loggar in med e-post + lösenord. */
+export async function login(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const email = String(formData.get("email") || "").trim();
+  const password = String(formData.get("password") || "");
+  if (!email || !password) return { error: "Ange både mejladress och lösenord." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) return { error: error.message === "Invalid login credentials" ? "Fel mejladress eller lösenord." : error.message };
+
+  redirect("/");
 }
 
 export async function logout() {

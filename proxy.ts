@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // OBS: heter "proxy.ts" (inte "middleware.ts") - Next.js 16 döpte om filkonventionen.
 // Funktionen kör på varje request: förnyar Supabase-sessionen och skickar oinloggade
-// besökare till /login. /login och /auth/* är undantagna så inloggningsflödet fungerar.
-const PUBLIC_PATHS = ["/login", "/auth"];
+// besökare till /login. /login är undantaget så inloggnings-/kontoskapandeformuläret syns.
+const PUBLIC_PATHS = ["/login"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
