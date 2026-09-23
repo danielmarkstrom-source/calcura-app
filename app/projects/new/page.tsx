@@ -1,91 +1,72 @@
 import Link from "next/link";
-import { createProject } from "@/app/actions";
-import { LEDNINGSSLAG, MATERIAL, MARKTYP, ARSTID } from "@/lib/calc";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { DEFAULT_COEF, type Coef, type MaterialRow } from "@/lib/calc";
+import AppHeader from "@/components/AppHeader";
+import ProjectForm from "@/components/ProjectForm";
 
-export default function NewProjectPage() {
+export default async function NewProjectPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: membership } = await supabase
+    .from("org_members")
+    .select("org_id, orgs(name)")
+    .eq("user_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  if (!membership) {
+    return (
+      <main className="flex min-h-full flex-1 items-center justify-center p-8 text-sm text-slate-600">
+        Kunde inte hitta din organisation.
+      </main>
+    );
+  }
+  const orgId = membership.org_id as string;
+  const orgName = (membership as { orgs?: { name?: string } }).orgs?.name;
+
+  const [{ data: settingsRow }, { data: materialRowsData }, { data: projectsData }] = await Promise.all([
+    supabase.from("org_settings").select("coef").eq("org_id", orgId).maybeSingle(),
+    supabase
+      .from("material_rows")
+      .select("id, slag, material, dimension, kr_per_m, co2_per_m, enhet")
+      .eq("org_id", orgId)
+      .order("slag")
+      .order("material")
+      .order("dimension"),
+    supabase.from("projects").select("utfall, prognos_total").eq("org_id", orgId),
+  ]);
+
+  const coef: Coef = { ...DEFAULT_COEF, ...((settingsRow?.coef as object) || {}) };
+  const materialDB: MaterialRow[] = (materialRowsData || []).map((r) => ({
+    id: r.id,
+    slag: r.slag,
+    material: r.material,
+    dimension: r.dimension,
+    krPerM: r.kr_per_m,
+    co2PerM: r.co2_per_m,
+    enhet: r.enhet,
+  }));
+  const calibrationProjects = (projectsData || []).map((p) => ({ utfall: p.utfall, prognosTotal: p.prognos_total }));
+
   return (
     <div className="flex min-h-full flex-1 flex-col bg-slate-50">
-      <header className="border-b border-slate-200 bg-white px-6 py-3">
-        <Link href="/" className="text-sm text-slate-600 hover:text-slate-900">
+      <AppHeader orgName={orgName} active="/" />
+      <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-8">
+        <Link href="/" className="text-sm text-slate-500 hover:text-slate-900">
           ← Tillbaka
         </Link>
-      </header>
-      <main className="mx-auto w-full max-w-md flex-1 px-6 py-8">
-        <h1 className="text-lg font-semibold text-slate-900">Nytt projekt</h1>
+        <h1 className="mt-2 text-lg font-semibold text-slate-900">Nytt projekt</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Minimal första version - en sträcka. Fler sträckor, servis/intrång/besiktning,
-          massberäkning och projektspecifika inställningar kommer i nästa steg av porten
-          (kalkylmotorn i <code className="rounded bg-slate-100 px-1 py-0.5">lib/calc.ts</code>{" "}
-          stödjer redan hela modellen).
+          Framdriftsloggning och projektspecifika inställningar (avvikande priser för just detta projekt)
+          kommer i nästa steg.
         </p>
-        <form action={createProject} className="mt-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700">Projektnamn</label>
-            <input
-              name="namn"
-              required
-              placeholder="t.ex. Storgatan VA-förnyelse"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Ledningsslag</label>
-              <select name="slag" defaultValue="spillvatten" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                {LEDNINGSSLAG.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Material</label>
-              <select name="material" defaultValue="pvc" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                {MATERIAL.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Dimension (mm)</label>
-              <input type="number" name="dimension" defaultValue={200} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Längd (m)</label>
-              <input type="number" name="langd" defaultValue={100} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Marktyp</label>
-              <select name="mark" defaultValue="gatumark" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                {MARKTYP.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Årstid</label>
-              <select name="arstid" defaultValue="host" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                {ARSTID.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <button type="submit" className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white">
-            Spara projekt
-          </button>
-        </form>
+        <div className="mt-6">
+          <ProjectForm coef={coef} materialDB={materialDB} calibrationProjects={calibrationProjects} />
+        </div>
       </main>
     </div>
   );

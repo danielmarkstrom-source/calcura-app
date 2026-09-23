@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { calcProjectDisplay, deepMergeCoef, DEFAULT_COEF, OVERRIDE_FIELDS, type Coef, type CoefOverrides, type MaterialRow } from "@/lib/calc";
+import { calcProjectDisplay, deepMergeCoef, DEFAULT_COEF, OVERRIDE_FIELDS, type Coef, type CoefOverrides, type MaterialRow, type Post } from "@/lib/calc";
 
 export type ActionState = { error?: string; success?: boolean } | undefined;
 
@@ -187,29 +187,13 @@ export async function deleteMaterialRow(id: string) {
   revalidatePath("/material");
 }
 
-/**
- * Minimal första version av "skapa projekt" - en sträcka. Fler fält (fler sträckor,
- * servis/intrång/besiktning, massberäkning, projektspecifika inställningar) kommer i
- * nästa steg av porten; se lib/calc.ts som redan stödjer hela modellen.
- */
-export async function createProject(formData: FormData) {
-  const supabase = await createClient();
-  const orgId = await requireOrgId(supabase);
-
-  const namn = String(formData.get("namn") || "").trim() || "Namnlöst projekt";
-  const slag = String(formData.get("slag") || "spillvatten");
-  const material = String(formData.get("material") || "pvc");
-  const dimension = Number(formData.get("dimension") || 200);
-  const langd = Number(formData.get("langd") || 0);
-  const mark = String(formData.get("mark") || "gatumark");
-  const arstid = String(formData.get("arstid") || "host");
-
+/** Läser org:ens coef + materialDB + projekt-facit (kalibrering) i ett svep. */
+async function getOrgCalcContext(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string) {
   const [{ data: settingsRow }, { data: materialRowsData }, { data: projectsData }] = await Promise.all([
     supabase.from("org_settings").select("coef").eq("org_id", orgId).maybeSingle(),
     supabase.from("material_rows").select("*").eq("org_id", orgId),
     supabase.from("projects").select("utfall, prognos_total").eq("org_id", orgId),
   ]);
-
   const coef: Coef = { ...DEFAULT_COEF, ...((settingsRow?.coef as object) || {}) };
   const materialDB: MaterialRow[] = (materialRowsData || []).map((r) => ({
     id: r.id,
@@ -221,20 +205,65 @@ export async function createProject(formData: FormData) {
     enhet: r.enhet,
   }));
   const projectsForCalibration = (projectsData || []).map((p) => ({ utfall: p.utfall, prognosTotal: p.prognos_total }));
+  return { coef, materialDB, projectsForCalibration };
+}
 
-  const poster = langd > 0 ? [{ id: "a", slag, material, dimension, langd, mark, enhet: "m" as const }] : [];
+/**
+ * Skapar ett projekt med flera sträckor, massberäkning m.m. `posterJson` kommer från
+ * ProjectForm (client-komponenten bygger raderna interaktivt och serialiserar hela
+ * listan till ett dolt fält - enklare än att indexera FormData-fält per rad).
+ */
+export async function createProject(formData: FormData) {
+  const supabase = await createClient();
+  const orgId = await requireOrgId(supabase);
+
+  const namn = String(formData.get("namn") || "").trim() || "Namnlöst projekt";
+  const arstid = String(formData.get("arstid") || "host");
+  const servis = Number(formData.get("servis") || 0);
+  const intrang = Number(formData.get("intrang") || 0);
+  const besiktning = Number(formData.get("besiktning") || 0);
+  const schaktdjup = Number(formData.get("schaktdjup") || 1.5);
+  const schaktbredd = Number(formData.get("schaktbredd") || 1.0);
+  const slantH = Number(formData.get("slantH") || 1);
+  const slantV = Number(formData.get("slantV") || 1);
+  const antalPersoner = Number(formData.get("antalPersoner") || 3);
+  const antalMaskiner = Number(formData.get("antalMaskiner") || 1);
+
+  let poster: Post[] = [];
+  try {
+    const parsed = JSON.parse(String(formData.get("posterJson") || "[]"));
+    if (Array.isArray(parsed)) {
+      poster = parsed
+        .filter((p) => p && p.slag && p.material && p.dimension && p.langd > 0)
+        .map((p, i) => ({
+          id: String(p.id || `p${i}`),
+          slag: String(p.slag),
+          material: String(p.material),
+          dimension: Number(p.dimension),
+          langd: Number(p.langd),
+          mark: p.mark ? String(p.mark) : "gatumark",
+          enhet: p.enhet === "st" ? "st" : "m",
+          delarSchakt: p.delarSchakt !== false,
+        }));
+    }
+  } catch {
+    return;
+  }
+
+  const { coef, materialDB, projectsForCalibration } = await getOrgCalcContext(supabase, orgId);
+
   const projectInput = {
     poster,
     arstid,
-    servis: 0,
-    intrang: 0,
-    besiktning: 0,
-    schaktdjup: 1.5,
-    schaktbredd: 1.0,
-    slantH: 1,
-    slantV: 1,
-    antalPersoner: 3,
-    antalMaskiner: 1,
+    servis,
+    intrang,
+    besiktning,
+    schaktdjup,
+    schaktbredd,
+    slantH,
+    slantV,
+    antalPersoner,
+    antalMaskiner,
     coefOverrides: {},
   };
 
@@ -245,17 +274,17 @@ export async function createProject(formData: FormData) {
     namn,
     status: "pagaende",
     poster,
-    servis: 0,
+    servis,
     arstid,
-    intrang: 0,
-    besiktning: 0,
-    antal_personer: 3,
-    antal_maskiner: 1,
+    intrang,
+    besiktning,
+    antal_personer: antalPersoner,
+    antal_maskiner: antalMaskiner,
     coef_overrides: {},
-    schaktdjup: 1.5,
-    schaktbredd: 1.0,
-    slant_h: 1,
-    slant_v: 1,
+    schaktdjup,
+    schaktbredd,
+    slant_h: slantH,
+    slant_v: slantV,
     prognos_total: calc.total,
     prognos_snapshot: calc,
     framdrift: [],
