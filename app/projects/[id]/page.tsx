@@ -79,7 +79,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
   const avvikelse = project.utfall ? ((project.utfall - (project.prognos_total || 0)) / (project.prognos_total || 1)) * 100 : null;
   const fd =
     project.status === "pagaende"
-      ? computeFramdrift({ framdrift: project.framdrift, coefOverrides: project.coef_overrides }, calc, globalCoef)
+      ? computeFramdrift({ framdrift: project.framdrift }, calc)
       : null;
 
   return (

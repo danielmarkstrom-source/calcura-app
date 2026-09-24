@@ -54,12 +54,15 @@ export interface Coef {
   categoryRates: CategoryRates;
   timmarPerArbetsdag: number;
   rateUnitVersion?: number;
-  markFaktor: Record<string, number>;
+  // Förläggningstakt (m/dag) per marktyp - ersätter den gamla synliga kostnadsmultiplikatorn
+  // "markFaktor". Marktyp påverkar nu bara hur många dagar/timmar schaktet tar, vilket i sin
+  // tur automatiskt ger lägre arbetstids-/maskin-/tjänstekostnad för snabbare mark - en enda
+  // mekanism istället för en dold takt-effekt plus en separat synlig kostnadsfaktor.
+  dagstaktMark: Record<string, number>;
   arstid: Record<string, number>;
   co2Slag: Record<string, number>;
   co2Material: Record<string, number>;
   tidsfaktorMaterial: Record<string, number>;
-  dagstakt: number;
   krServis: number;
   krIntrang: number;
   krBesiktning: number;
@@ -81,12 +84,11 @@ export const DEFAULT_COEF: Coef = {
   categoryRates: { arbetstid: 550, maskinkostnad: 800, anlaggningsmaterial: 250, tjanster: 400 },
   timmarPerArbetsdag: 8,
   rateUnitVersion: 2,
-  markFaktor: { gatumark: 1.0, skogsmark: 0.85, jordbruksmark: 0.75 },
+  dagstaktMark: { gatumark: 6, skogsmark: 15, jordbruksmark: 20 },
   arstid: Object.fromEntries(ARSTID.map((a) => [a.id, a.faktor])),
   co2Slag: Object.fromEntries(LEDNINGSSLAG.map((s) => [s.id, s.co2])),
   co2Material: Object.fromEntries(MATERIAL.map((m) => [m.id, m.co2Faktor])),
   tidsfaktorMaterial: Object.fromEntries(MATERIAL.map((m) => [m.id, m.tidsfaktor])),
-  dagstakt: 22,
   krServis: 45000,
   krIntrang: 15000,
   krBesiktning: 3000,
@@ -222,7 +224,6 @@ export interface CalcResult {
   antalPersoner: number;
   antalMaskiner: number;
   ledningDagar: number;
-  dagstakt: number;
   tidsdrivenTotal: number;
   calibration?: { factor: number; n: number };
 }
@@ -254,7 +255,8 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
         co2PerEnhetFromDB !== null
           ? mangd * co2PerEnhetFromDB
           : mangd * (coef.co2Slag[post.slag] || 0) * (coef.co2Material[post.material] || 1) * dimFaktor;
-      dagar = (mangd / (coef.dagstakt || 22)) * (coef.tidsfaktorMaterial[post.material] || 1) * arstidFaktor;
+      const takt = coef.dagstaktMark[post.mark || "gatumark"] || coef.dagstaktMark.gatumark || 6;
+      dagar = (mangd / takt) * (coef.tidsfaktorMaterial[post.material] || 1) * arstidFaktor;
     }
 
     return { ...post, enhet, materialKostnad, co2, dagar };
@@ -316,13 +318,12 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   const antalMaskiner = p.antalMaskiner ?? 1;
   const schakttimmar = ledningDagar * tph;
   const arbetstimmar = schakttimmar * antalPersoner;
-  const avgMark =
-    pipeLangdSum > 0
-      ? meterPosts.reduce((a, p2) => a + (coef.markFaktor[p2.mark || "gatumark"] ?? 1) * (p2.langd || 0), 0) / pipeLangdSum
-      : 1;
-  const arbetstidTotal = schakttimmar * antalPersoner * (coef.categoryRates.arbetstid || 0) * avgMark;
-  const maskinTotal = schakttimmar * antalMaskiner * (coef.categoryRates.maskinkostnad || 0) * avgMark;
-  const tjansterTotal = schakttimmar * (coef.categoryRates.tjanster || 0) * avgMark;
+  // Marktyp påverkar inte längre kostnaden direkt - effekten kommer redan in via
+  // schakttimmar (dagar per post räknas ut från dagstaktMark ovan). Snabbare mark
+  // ger färre timmar och därmed automatiskt lägre arbetstids-/maskin-/tjänstekostnad.
+  const arbetstidTotal = schakttimmar * antalPersoner * (coef.categoryRates.arbetstid || 0);
+  const maskinTotal = schakttimmar * antalMaskiner * (coef.categoryRates.maskinkostnad || 0);
+  const tjansterTotal = schakttimmar * (coef.categoryRates.tjanster || 0);
   const anlaggningsTotal = massor.anlaggningsmaterialBehov * (coef.categoryRates.anlaggningsmaterial || 0);
   const ovrigtTotal = arbetstidTotal + maskinTotal + anlaggningsTotal + tjansterTotal;
   const ledningKostnad = materialTotal + ovrigtTotal;
@@ -370,7 +371,6 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     antalPersoner,
     antalMaskiner,
     ledningDagar,
-    dagstakt: coef.dagstakt || 22,
     tidsdrivenTotal: arbetstidTotal + maskinTotal + tjansterTotal,
   };
 }
@@ -409,11 +409,10 @@ export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit
   { group: "Kategorikostnader", path: "categoryRates.tjanster", label: "Tjänster", unit: "kr/tim" },
   { group: "Kategorikostnader", path: "categoryRates.anlaggningsmaterial", label: "Anläggningsmaterial", unit: "kr/m³" },
   { group: "Tidsantaganden", path: "timmarPerArbetsdag", label: "Timmar per arbetsdag", unit: "tim" },
-  { group: "Tidsantaganden", path: "dagstakt", label: "Meter per arbetsdag", unit: "m/dag" },
   { group: "Tidsantaganden", path: "extraPipeDagarFaktor", label: "Extra tid per parallell ledning", unit: "×", step: "0.05" },
-  { group: "Marktypsfaktor", path: "markFaktor.gatumark", label: "Gatumark", unit: "×", step: "0.05" },
-  { group: "Marktypsfaktor", path: "markFaktor.skogsmark", label: "Skogsmark", unit: "×", step: "0.05" },
-  { group: "Marktypsfaktor", path: "markFaktor.jordbruksmark", label: "Jordbruksmark", unit: "×", step: "0.05" },
+  { group: "Förläggningstakt", path: "dagstaktMark.gatumark", label: "Gatumark", unit: "m/dag" },
+  { group: "Förläggningstakt", path: "dagstaktMark.skogsmark", label: "Skogsmark", unit: "m/dag" },
+  { group: "Förläggningstakt", path: "dagstaktMark.jordbruksmark", label: "Jordbruksmark", unit: "m/dag" },
   { group: "Årstidsfaktor", path: "arstid.var", label: "Vår", unit: "×", step: "0.05" },
   { group: "Årstidsfaktor", path: "arstid.sommar", label: "Sommar", unit: "×", step: "0.05" },
   { group: "Årstidsfaktor", path: "arstid.host", label: "Höst", unit: "×", step: "0.05" },
@@ -483,7 +482,7 @@ export interface FramdriftResult {
   ovrigaDagar: number;
 }
 
-export function computeFramdrift(p: { framdrift?: FramdriftEntry[]; coefOverrides?: CoefOverrides }, calc: CalcResult, globalCoef: Coef): FramdriftResult {
+export function computeFramdrift(p: { framdrift?: FramdriftEntry[] }, calc: CalcResult): FramdriftResult {
   const entries = Array.isArray(p.framdrift) ? p.framdrift : [];
   const totalMeter = entries.reduce((a, e) => a + (e.meter || 0), 0);
   const totalDagar = entries.reduce((a, e) => a + (e.dagar || 0), 0);
@@ -492,15 +491,10 @@ export function computeFramdrift(p: { framdrift?: FramdriftEntry[]; coefOverride
   // i planen, inte totala dagar (som även rymmer servis/besiktning).
   const schaktDagarPlan = calc.ledningDagar != null && calc.ledningDagar > 0 ? calc.ledningDagar : calc.dagar;
   const ovrigaDagar = Math.max(0, (calc.dagar || 0) - schaktDagarPlan);
-  // Visas som referens: den inställda förläggningstakten - medvetet frikopplad från
-  // beräkningen nedan, som räknar på den projektjusterade schakttiden (ledningDagar).
-  const dagstaktRef = (getCoefByPath(effCoef(globalCoef, p), "dagstakt") as number | undefined) ?? calc.dagstakt ?? globalCoef.dagstakt;
-  const ursprungligTakt =
-    dagstaktRef != null && dagstaktRef > 0
-      ? dagstaktRef
-      : calc.langdTotal > 0 && schaktDagarPlan > 0
-        ? calc.langdTotal / schaktDagarPlan
-        : null;
+  // Planerad takt: räknas fram ur den faktiska schakttiden (ledningDagar), som redan
+  // väger ihop varje sträckas egen dagstaktMark (marktyp) - korrekt även när ett
+  // projekt blandar t.ex. gatumark och skogsmark.
+  const ursprungligTakt = calc.langdTotal > 0 && schaktDagarPlan > 0 ? calc.langdTotal / schaktDagarPlan : null;
   const aterstaendeLangd = Math.max(0, calc.langdTotal - totalMeter);
   const revideradAterstaendeDagar = observeradTakt ? aterstaendeLangd / observeradTakt : null;
   const revideradSchaktDagar = observeradTakt ? totalDagar + (revideradAterstaendeDagar as number) : null;
