@@ -90,7 +90,7 @@ export const DEFAULT_COEF: Coef = {
   krServis: 45000,
   krIntrang: 15000,
   krBesiktning: 3000,
-  dagServis: 0.3,
+  dagServis: 1, // 1 dag per servisanslutning - påverkar bara tidsåtgången (dagar), inte kostnaden (krServis är redan en fast styckkostnad, se calcProject)
   extraPipeDagarFaktor: 0.15,
   fallBrytdjup: 0.5,
   lastbilKapacitet: 10,
@@ -419,6 +419,8 @@ export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit
   { group: "Övriga kostnader", path: "krServis", label: "Per servisanslutning", unit: "kr/st" },
   { group: "Övriga kostnader", path: "krIntrang", label: "Per fastighetsintrång", unit: "kr/st" },
   { group: "Övriga kostnader", path: "krBesiktning", label: "Per besiktning", unit: "kr/st" },
+  { group: "Övriga kostnader", path: "dagServis", label: "Dagar per servisanslutning", unit: "dag/st", step: "0.1" },
+  { group: "Övriga kostnader", path: "dagBesiktning", label: "Dagar per besiktning", unit: "dag/st", step: "0.1" },
   { group: "Övriga kostnader", path: "osakerhet", label: "Osäkerhetsspann", unit: "%" },
 ];
 
