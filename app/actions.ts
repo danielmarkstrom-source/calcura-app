@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { calcProjectDisplay, deepMergeCoef, DEFAULT_COEF, OVERRIDE_FIELDS, type Coef, type CoefOverrides, type MaterialRow, type Post } from "@/lib/calc";
+import { calcProjectDisplay, deepMergeCoef, effCoef, DEFAULT_COEF, OVERRIDE_FIELDS, type Coef, type CoefOverrides, type MaterialRow, type Post } from "@/lib/calc";
 
 export type ActionState = { error?: string; success?: boolean } | undefined;
 
@@ -250,6 +250,14 @@ export async function createProject(formData: FormData) {
     return;
   }
 
+  let coefOverrides: CoefOverrides = {};
+  try {
+    const parsedOv = JSON.parse(String(formData.get("coefOverridesJson") || "{}"));
+    if (parsedOv && typeof parsedOv === "object") coefOverrides = parsedOv;
+  } catch {
+    coefOverrides = {};
+  }
+
   const { coef, materialDB, projectsForCalibration } = await getOrgCalcContext(supabase, orgId);
 
   const projectInput = {
@@ -264,10 +272,10 @@ export async function createProject(formData: FormData) {
     slantV,
     antalPersoner,
     antalMaskiner,
-    coefOverrides: {},
+    coefOverrides,
   };
 
-  const calc = calcProjectDisplay(projectInput, coef, materialDB, projectsForCalibration);
+  const calc = calcProjectDisplay(projectInput, effCoef(coef, { coefOverrides }), materialDB, projectsForCalibration);
 
   const { error } = await supabase.from("projects").insert({
     org_id: orgId,
@@ -280,7 +288,7 @@ export async function createProject(formData: FormData) {
     besiktning,
     antal_personer: antalPersoner,
     antal_maskiner: antalMaskiner,
-    coef_overrides: {},
+    coef_overrides: coefOverrides,
     schaktdjup,
     schaktbredd,
     slant_h: slantH,

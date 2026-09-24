@@ -4,12 +4,16 @@ import { useMemo, useState } from "react";
 import {
   ARSTID,
   MARKTYP,
+  OVERRIDE_FIELDS,
   calcProjectDisplay,
+  effCoef,
   formatKr,
   fmtInt,
+  getCoefByPath,
   materialLabel,
   slagLabel,
   type Coef,
+  type CoefOverrides,
   type MaterialRow,
   type Post,
 } from "@/lib/calc";
@@ -40,6 +44,36 @@ export default function ProjectForm({
   const [antalPersoner, setAntalPersoner] = useState(3);
   const [antalMaskiner, setAntalMaskiner] = useState(1);
   const [poster, setPoster] = useState<Post[]>([]);
+  const [coefOverrides, setCoefOverrides] = useState<CoefOverrides>({});
+  const [advOpen, setAdvOpen] = useState(false);
+
+  // Skriv/rensa ett override-fält (dotted path). Tomt eller lika med globalt värde
+  // tas bort helt - fältet ärver då det globala värdet igen. Samma mönster som
+  // det globala inställningsformuläret (components/CoefForm.tsx) använder.
+  function updateOverride(path: string, value: string) {
+    const num = Number(value);
+    const globalVal = getCoefByPath(coef, path) as number | undefined;
+    const remove = value === "" || Number.isNaN(num) || num === Number(globalVal);
+    setCoefOverrides((ov) => {
+      const next: Record<string, unknown> = { ...ov };
+      const [group, key] = path.split(".");
+      if (key === undefined) {
+        if (remove) delete next[group];
+        else next[group] = num;
+      } else {
+        const groupVal = { ...((next[group] as Record<string, unknown>) || {}) };
+        if (remove) {
+          delete groupVal[key];
+          if (Object.keys(groupVal).length === 0) delete next[group];
+          else next[group] = groupVal;
+        } else {
+          groupVal[key] = num;
+          next[group] = groupVal;
+        }
+      }
+      return next as CoefOverrides;
+    });
+  }
 
   const slags = useMemo(() => Array.from(new Set(materialDB.map((r) => r.slag))), [materialDB]);
   const materialsFor = (slag: string) => Array.from(new Set(materialDB.filter((r) => r.slag === slag).map((r) => r.material)));
@@ -102,18 +136,25 @@ export default function ProjectForm({
       slantV,
       antalPersoner,
       antalMaskiner,
-      coefOverrides: {},
+      coefOverrides,
     }),
-    [poster, arstid, servis, intrang, besiktning, schaktdjup, schaktbredd, slantH, slantV, antalPersoner, antalMaskiner]
+    [poster, arstid, servis, intrang, besiktning, schaktdjup, schaktbredd, slantH, slantV, antalPersoner, antalMaskiner, coefOverrides]
   );
+  const effectiveCoef = useMemo(() => effCoef(coef, { coefOverrides }), [coef, coefOverrides]);
   const calc = useMemo(
-    () => calcProjectDisplay(projectInput, coef, materialDB, calibrationProjects),
-    [projectInput, coef, materialDB, calibrationProjects]
+    () => calcProjectDisplay(projectInput, effectiveCoef, materialDB, calibrationProjects),
+    [projectInput, effectiveCoef, materialDB, calibrationProjects]
   );
+  const overrideGroups = useMemo(
+    () => OVERRIDE_FIELDS.reduce<string[]>((acc, f) => (acc.includes(f.group) ? acc : [...acc, f.group]), []),
+    []
+  );
+  const activeOverrideCount = OVERRIDE_FIELDS.filter((f) => getCoefByPath(coefOverrides, f.path) !== undefined).length;
 
   return (
     <form action={createProject} className="space-y-6">
       <input type="hidden" name="posterJson" value={JSON.stringify(poster)} />
+      <input type="hidden" name="coefOverridesJson" value={JSON.stringify(coefOverrides)} />
 
       <div>
         <label className="block text-sm font-medium text-slate-700">Projektnamn</label>
@@ -310,6 +351,59 @@ export default function ProjectForm({
           Fall A {calc.massor.fallAVolym.toFixed(1)} m³ · Fall B {calc.massor.fallBVolym.toFixed(1)} m³ · anläggningsmaterial{" "}
           {calc.massor.anlaggningsmaterialBehov.toFixed(1)} m³
         </p>
+      </div>
+
+      <div>
+        <button
+          type="button"
+          onClick={() => setAdvOpen((v) => !v)}
+          className={
+            "flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" +
+            (advOpen ? " rounded-b-none border-b-0" : "")
+          }
+        >
+          <span>Projektspecifika inställningar (avancerat){activeOverrideCount > 0 ? ` · ${activeOverrideCount} ändrade` : ""}</span>
+          <span className="text-slate-400">{advOpen ? "▲" : "▼"}</span>
+        </button>
+        {advOpen && (
+          <div className="space-y-3 rounded-b-md border border-t-0 border-slate-300 bg-white p-4">
+            <p className="text-xs text-slate-500">
+              Varje fält ärver värdet från Inställningar tills du skriver in ett eget. Töm fältet för att återgå
+              till det globala värdet.
+            </p>
+            {overrideGroups.map((g) => (
+              <div key={g}>
+                <h3 className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{g}</h3>
+                <div className="mt-1 space-y-1">
+                  {OVERRIDE_FIELDS.filter((f) => f.group === g).map((f) => {
+                    const globalVal = getCoefByPath(coef, f.path) as number;
+                    const overrideVal = getCoefByPath(coefOverrides, f.path) as number | undefined;
+                    const isOverridden = overrideVal !== undefined;
+                    return (
+                      <div key={f.path} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-slate-600">{f.label}</span>
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step={f.step ?? "1"}
+                            defaultValue={isOverridden ? overrideVal : ""}
+                            placeholder={String(globalVal)}
+                            onChange={(e) => updateOverride(f.path, e.target.value)}
+                            className="w-24 rounded-md border border-slate-300 px-2 py-1 text-right text-xs"
+                          />
+                          <span className="w-14 text-slate-400">{f.unit}</span>
+                          <span className={isOverridden ? "w-12 text-sky-600" : "w-12 text-slate-400"}>
+                            {isOverridden ? "ändrad" : "ärvd"}
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-4 gap-3 rounded-md bg-slate-900 p-4 text-white">
