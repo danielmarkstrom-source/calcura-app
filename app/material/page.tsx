@@ -44,16 +44,13 @@ export default async function MaterialPage({ searchParams }: PageProps<"/materia
   const editRow = editId ? materialRows.find((r) => r.id === editId) : undefined;
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-slate-50">
-      <AppHeader orgName={orgName} active="/material" />
-      <main className="mx-auto w-full max-w-2xl flex-1 space-y-6 px-6 py-8">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">Material</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            En rad per kombination av ledningsslag, materialtyp och dimension, med ett exakt pris - inte en
-            skalad schablon. Priserna används vid nya projekt.
-          </p>
-        </div>
+    <div className="flex min-h-full flex-1 flex-col bg-[var(--paper)]">
+      <AppHeader orgName={orgName} active="/material" title="Material" subtitle="Materialdatabas" />
+      <main className="mx-auto w-full max-w-2xl flex-1 space-y-6 px-6 py-5">
+        <p className="text-sm text-[var(--muted-2)]">
+          En rad per kombination av ledningsslag, materialtyp och dimension, med ett exakt pris - inte en
+          skalad schablon. Priserna används vid nya projekt.
+        </p>
 
         {materialRows.length === 0 ? (
           <p className="rounded-md border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">

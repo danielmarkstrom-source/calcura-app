@@ -7,21 +7,48 @@ const LINKS = [
   { href: "/settings", label: "Inställningar" },
 ];
 
-export default function AppHeader({ orgName, active }: { orgName?: string; active: string }) {
+// Navy topbar + vit titelrad - samma layout som va-pilot.html:s .topbar/.titlebar,
+// så calcura-app och piloten är visuellt igenkännbara som samma verktyg.
+export default function AppHeader({
+  orgName,
+  active,
+  title,
+  subtitle,
+}: {
+  orgName?: string;
+  active: string;
+  title?: string;
+  subtitle?: string;
+}) {
   return (
-    <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
-      <div>
-        <div className="text-sm font-semibold text-slate-900">Calcura</div>
-        <div className="text-xs text-slate-500">{orgName ?? "Din organisation"}</div>
-      </div>
-      <nav className="flex items-center gap-4 text-sm">
-        {LINKS.filter((l) => l.href !== active).map((l) => (
-          <Link key={l.href} href={l.href} className="text-slate-600 hover:text-slate-900">
-            {l.label}
-          </Link>
-        ))}
-        <LogoutButton />
-      </nav>
-    </header>
+    <>
+      <header className="flex h-[46px] items-center justify-between bg-[var(--navy)] px-5 text-white">
+        <div className="flex items-center gap-2">
+          <span className="text-[15px] font-semibold tracking-tight">Calcura</span>
+          {orgName && <span className="text-xs text-[#8FA7B8]">· {orgName}</span>}
+        </div>
+        <nav className="flex items-center gap-1 text-[13px]">
+          {LINKS.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className={
+                "rounded px-3 py-1.5 font-medium " +
+                (l.href === active ? "bg-[var(--steel)] text-white" : "text-[#B9C6CE] hover:bg-white/10 hover:text-white")
+              }
+            >
+              {l.label}
+            </Link>
+          ))}
+          <LogoutButton className="rounded px-3 py-1.5 text-[#B9C6CE] hover:bg-white/10 hover:text-white" />
+        </nav>
+      </header>
+      {title && (
+        <div className="border-b border-[var(--line)] bg-white px-6 pt-4">
+          <h1 className="m-0 mb-2.5 text-[20px] font-semibold text-[var(--ink)]">{title}</h1>
+          {subtitle && <div className="pb-3 text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">{subtitle}</div>}
+        </div>
+      )}
+    </>
   );
 }

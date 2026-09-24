@@ -84,26 +84,26 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
       : null;
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-slate-50">
-      <AppHeader orgName={orgName} active="/" />
-      <main className="mx-auto grid w-full max-w-3xl flex-1 gap-6 px-6 py-8 md:grid-cols-[1fr_280px]">
+    <div className="flex min-h-full flex-1 flex-col bg-[var(--paper)]">
+      <AppHeader orgName={orgName} active="/" title="Projekt" subtitle="Projektdetalj" />
+      <main className="mx-auto grid w-full max-w-3xl flex-1 gap-6 px-6 py-5 md:grid-cols-[1fr_280px]">
         <div>
-          <Link href="/" className="text-sm text-slate-500 hover:text-slate-900">
+          <Link href="/" className="text-xs text-[var(--muted)] hover:text-[var(--navy)]">
             ← Tillbaka till översikt
           </Link>
           <div className="mt-2 flex items-center gap-2">
-            <h1 className="text-lg font-semibold text-slate-900">{project.namn || "Namnlöst projekt"}</h1>
+            <h2 className="m-0 text-[20px] font-semibold text-[var(--ink)]">{project.namn || "Namnlöst projekt"}</h2>
             <span
               className={
                 "rounded px-2 py-0.5 text-xs font-medium uppercase tracking-wide " +
-                (project.status === "avslutat" ? "bg-emerald-50 text-emerald-700" : "bg-sky-50 text-sky-700")
+                (project.status === "avslutat" ? "bg-[var(--green-light)] text-[var(--green)]" : "bg-[var(--steel-light)] text-[var(--steel)]")
               }
             >
               {project.status === "avslutat" ? "Avslutat" : "Pågående"}
             </span>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 rounded-md bg-slate-900 p-4 text-white sm:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-3 rounded-md bg-[var(--navy)] p-4 text-white sm:grid-cols-4">
             <div>
               <div className="text-[10px] uppercase tracking-wide text-slate-400">Prognos</div>
               <div className="text-base font-bold">{formatKr(calc.total)}</div>

@@ -46,15 +46,12 @@ export default async function SettingsPage() {
   const calibration = getCalibration((projectsData || []).map((p) => ({ utfall: p.utfall, prognosTotal: p.prognos_total })));
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-slate-50">
-      <AppHeader orgName={orgName} active="/settings" />
-      <main className="mx-auto w-full max-w-2xl flex-1 space-y-8 px-6 py-8">
-        <section>
-          <h1 className="text-lg font-semibold text-slate-900">Inställningar</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {members?.length ?? 0} medlem(mar) i {orgName}.
-          </p>
-        </section>
+    <div className="flex min-h-full flex-1 flex-col bg-[var(--paper)]">
+      <AppHeader orgName={orgName} active="/settings" title="Inställningar" subtitle="Koefficienter" />
+      <main className="mx-auto w-full max-w-2xl flex-1 space-y-8 px-6 py-5">
+        <p className="text-sm text-[var(--muted-2)]">
+          {members?.length ?? 0} medlem(mar) i {orgName}.
+        </p>
 
         <section>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Bjud in kollega</h2>

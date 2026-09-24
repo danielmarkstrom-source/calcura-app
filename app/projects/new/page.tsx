@@ -53,14 +53,13 @@ export default async function NewProjectPage() {
   const calibrationProjects = (projectsData || []).map((p) => ({ utfall: p.utfall, prognosTotal: p.prognos_total }));
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-slate-50">
-      <AppHeader orgName={orgName} active="/" />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-8">
-        <Link href="/" className="text-sm text-slate-500 hover:text-slate-900">
-          ← Tillbaka
+    <div className="flex min-h-full flex-1 flex-col bg-[var(--paper)]">
+      <AppHeader orgName={orgName} active="/" title="Projekt" subtitle="Nytt projekt" />
+      <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-5">
+        <Link href="/" className="text-xs text-[var(--muted)] hover:text-[var(--navy)]">
+          ← Tillbaka till översikt
         </Link>
-        <h1 className="mt-2 text-lg font-semibold text-slate-900">Nytt projekt</h1>
-        <div className="mt-6">
+        <div className="mt-4">
           <ProjectForm coef={coef} materialDB={materialDB} calibrationProjects={calibrationProjects} />
         </div>
       </main>
