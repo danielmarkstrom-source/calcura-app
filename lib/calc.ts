@@ -235,7 +235,6 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     const enhet = post.enhet || "m";
     const refDim = coef.refDim[post.slag] || 200;
     const dimFaktor = (post.dimension || refDim) / refDim;
-    const markFaktor = coef.markFaktor[post.mark || "gatumark"] ?? 1;
     const materialPris = getMaterialPrice(materialDB, post.slag, post.material, post.dimension);
     const mangd = post.langd || 0;
     const co2PerEnhetFromDB = getMaterialCO2(materialDB, post.slag, post.material, post.dimension);
@@ -248,7 +247,9 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
       co2 = mangd * (co2PerEnhetFromDB || 0);
       dagar = 0;
     } else {
-      materialKostnad = mangd * materialPris * arstidFaktor * markFaktor;
+      // Materialpriset är ett exakt pris ur materialdatabasen - påverkas inte av
+      // årstid eller marktyp (bara mängd × pris).
+      materialKostnad = mangd * materialPris;
       co2 =
         co2PerEnhetFromDB !== null
           ? mangd * co2PerEnhetFromDB
@@ -327,7 +328,7 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   const ledningKostnad = materialTotal + ovrigtTotal;
 
   const servisKostnad = (p.servis || 0) * coef.krServis * arstidFaktor;
-  const intrangKostnad = (p.intrang || 0) * coef.krIntrang * arstidFaktor;
+  const intrangKostnad = (p.intrang || 0) * coef.krIntrang; // ren schablonkostnad, ingen årstidspåverkan
   const besiktningKostnad = (p.besiktning || 0) * coef.krBesiktning * arstidFaktor;
   const servisDagar = (p.servis || 0) * coef.dagServis;
   const besiktningDagar = (p.besiktning || 0) * coef.dagBesiktning;
@@ -337,13 +338,17 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   const dagar = ledningDagar + servisDagar + besiktningDagar;
 
   const materialKrPerM = pipeLangdSum > 0 ? materialTotalM / pipeLangdSum : 0;
+  // Tjänster (kr/tim, se categoryRates) visas inte längre som egen rad - kostnaden
+  // slås ihop i Schaktkostnad (f.d. Servisanslutningar) tillsammans med krServis-
+  // schablonen. Själva rate:n/kalkylen är oförändrad, bara vad den läggs ihop med
+  // i visningen - ovrigtTotal/tidsdrivenTotal (kalibrering, framdrift) inkluderar
+  // fortfarande tjansterTotal precis som förut.
   const parts: CalcPart[] = [
     { key: "material", label: hasStyckItems ? "Material (meter- och styckvaror)" : `Material (snitt ${formatKr(materialKrPerM)}/m)`, value: materialTotal },
     { key: "arbetstid", label: "Arbetstid", value: arbetstidTotal },
     { key: "anlaggningsmaterial", label: "Anläggningsmaterial", value: anlaggningsTotal },
-    { key: "tjanster", label: "Tjänster", value: tjansterTotal },
     { key: "maskinkostnad", label: "Maskinkostnader", value: maskinTotal },
-    { key: "servis", label: "Servisanslutningar", value: servisKostnad },
+    { key: "schaktkostnad", label: "Schaktkostnad", value: servisKostnad + tjansterTotal },
     { key: "intrang", label: "Fastighetsintrång", value: intrangKostnad },
     { key: "besiktning", label: "Besiktning", value: besiktningKostnad },
   ];

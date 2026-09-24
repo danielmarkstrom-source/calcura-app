@@ -329,7 +329,7 @@ export default function ProjectForm({
 
       <div>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Massberäkning</h2>
-        <div className="mt-2 grid grid-cols-4 gap-2">
+        <div className="mt-2 grid grid-cols-3 gap-2">
           <div>
             <label className="block text-[10px] text-slate-400">Schaktdjup (m)</label>
             <input type="number" step="0.1" name="schaktdjup" value={schaktdjup} onChange={(e) => setSchaktdjup(Number(e.target.value))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
@@ -339,14 +339,18 @@ export default function ProjectForm({
             <input type="number" step="0.1" name="schaktbredd" value={schaktbredd} onChange={(e) => setSchaktbredd(Number(e.target.value))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
           </div>
           <div>
-            <label className="block text-[10px] text-slate-400">Slänt H</label>
-            <input type="number" step="0.1" name="slantH" value={slantH} onChange={(e) => setSlantH(Number(e.target.value))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-          </div>
-          <div>
-            <label className="block text-[10px] text-slate-400">Slänt V</label>
-            <input type="number" step="0.1" name="slantV" value={slantV} onChange={(e) => setSlantV(Number(e.target.value))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+            <label className="block text-[10px] text-slate-400">Släntlutning (vertikal : horisontell)</label>
+            <div className="mt-0.5 flex items-center gap-1">
+              <input type="number" step="0.1" name="slantV" value={slantV} onChange={(e) => setSlantV(Number(e.target.value))} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+              <span className="text-slate-400">:</span>
+              <input type="number" step="0.1" name="slantH" value={slantH} onChange={(e) => setSlantH(Number(e.target.value))} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+            </div>
           </div>
         </div>
+        <p className="mt-2 text-xs text-slate-500">
+          T.ex. 1:1 (45°) eller 1:1,5 (flackare). Enligt AMA/MER Anläggning gäller 1:1 om inget annat anges i
+          handlingarna.
+        </p>
         <p className="mt-2 text-xs text-slate-500">
           Fall A {calc.massor.fallAVolym.toFixed(1)} m³ · Fall B {calc.massor.fallBVolym.toFixed(1)} m³ · anläggningsmaterial{" "}
           {calc.massor.anlaggningsmaterialBehov.toFixed(1)} m³
