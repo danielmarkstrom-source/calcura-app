@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import InviteForm from "@/components/InviteForm";
 import AppHeader from "@/components/AppHeader";
 import CoefForm from "@/components/CoefForm";
+import OrgNameForm from "@/components/OrgNameForm";
 import { DEFAULT_COEF, getCalibration, type Coef } from "@/lib/calc";
 
 export default async function SettingsPage() {
@@ -47,11 +48,18 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-[var(--paper)]">
-      <AppHeader orgName={orgName} active="/settings" title="Inställningar" subtitle="Koefficienter" />
+      <AppHeader userEmail={user.email} active="/settings" title="Inställningar" subtitle="Koefficienter" />
       <main className="mx-auto w-full max-w-2xl flex-1 space-y-8 px-6 py-5">
-        <p className="text-sm text-[var(--muted-2)]">
-          {members?.length ?? 0} medlem(mar) i {orgName}.
-        </p>
+        <section>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Organisation</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {members?.length ?? 0} medlem(mar). Namnet sattes automatiskt när kontot skapades - byt till vad ni
+            faktiskt vill kalla er.
+          </p>
+          <div className="mt-3">
+            <OrgNameForm currentName={orgName} />
+          </div>
+        </section>
 
         <section>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Bjud in kollega</h2>

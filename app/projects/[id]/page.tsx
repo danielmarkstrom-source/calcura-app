@@ -17,7 +17,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
 
   const { data: membership } = await supabase
     .from("org_members")
-    .select("org_id, orgs(name)")
+    .select("org_id")
     .eq("user_id", user.id)
     .limit(1)
     .maybeSingle();
@@ -29,7 +29,6 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
     );
   }
   const orgId = membership.org_id as string;
-  const orgName = (membership as { orgs?: { name?: string } }).orgs?.name;
 
   const { data: project } = await supabase.from("projects").select("*").eq("id", id).eq("org_id", orgId).maybeSingle();
   if (!project) notFound();
@@ -85,7 +84,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-[var(--paper)]">
-      <AppHeader orgName={orgName} active="/" title="Projekt" subtitle="Projektdetalj" />
+      <AppHeader userEmail={user.email} active="/" title="Projekt" subtitle="Projektdetalj" />
       <main className="mx-auto grid w-full max-w-3xl flex-1 gap-6 px-6 py-5 md:grid-cols-[1fr_280px]">
         <div>
           <Link href="/" className="text-xs text-[var(--muted)] hover:text-[var(--navy)]">

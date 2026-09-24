@@ -62,6 +62,27 @@ async function requireOrgId(supabase: Awaited<ReturnType<typeof createClient>>):
   return membership.org_id as string;
 }
 
+/**
+ * Byter namn på organisationen (t.ex. bort med det automatgenererade
+ * "namn@mejl's org" från handle_new_user-triggern). RLS ("owners can update own
+ * org" i supabase/migrations/0001_init.sql) begränsar detta till org:ens owner.
+ */
+export async function renameOrg(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const name = String(formData.get("name") || "").trim();
+  if (!name) return { error: "Ange ett namn." };
+
+  const supabase = await createClient();
+  const orgId = await requireOrgId(supabase);
+
+  const { error } = await supabase.from("orgs").update({ name }).eq("id", orgId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings");
+  revalidatePath("/");
+  revalidatePath("/material");
+  return { success: true };
+}
+
 /** Bjuder in en kollega via mejl - de hamnar automatiskt i samma organisation vid inloggning. */
 export async function inviteColleague(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const email = String(formData.get("email") || "")

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
+import Logo from "@/components/Logo";
 
 const LINKS = [
   { href: "/", label: "Projekt" },
@@ -10,12 +11,12 @@ const LINKS = [
 // Navy topbar + vit titelrad - samma layout som va-pilot.html:s .topbar/.titlebar,
 // så calcura-app och piloten är visuellt igenkännbara som samma verktyg.
 export default function AppHeader({
-  orgName,
+  userEmail,
   active,
   title,
   subtitle,
 }: {
-  orgName?: string;
+  userEmail?: string;
   active: string;
   title?: string;
   subtitle?: string;
@@ -24,8 +25,9 @@ export default function AppHeader({
     <>
       <header className="flex h-[46px] items-center justify-between bg-[var(--navy)] px-5 text-white">
         <div className="flex items-center gap-2">
+          <Logo />
           <span className="text-[15px] font-semibold tracking-tight">Calcura</span>
-          {orgName && <span className="text-xs text-[#8FA7B8]">· {orgName}</span>}
+          {userEmail && <span className="text-xs text-[#8FA7B8]">· {userEmail}</span>}
         </div>
         <nav className="flex items-center gap-1 text-[13px]">
           {LINKS.map((l) => (

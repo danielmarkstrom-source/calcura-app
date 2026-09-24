@@ -14,7 +14,7 @@ export default async function DashboardPage() {
 
   const { data: membership } = await supabase
     .from("org_members")
-    .select("org_id, orgs(name)")
+    .select("org_id")
     .eq("user_id", user.id)
     .limit(1)
     .maybeSingle();
@@ -28,7 +28,6 @@ export default async function DashboardPage() {
   }
 
   const orgId = membership.org_id as string;
-  const orgName = (membership as { orgs?: { name?: string } }).orgs?.name;
 
   const [{ data: projects }, { data: settingsRow }] = await Promise.all([
     supabase
@@ -59,7 +58,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-[var(--paper)]">
-      <AppHeader orgName={orgName} active="/" title="Projekt" subtitle="Översikt" />
+      <AppHeader userEmail={user.email} active="/" title="Projekt" subtitle="Översikt" />
       <main className="mx-auto grid w-full max-w-[1180px] flex-1 items-start gap-6 px-6 py-5 md:grid-cols-[1fr_260px]">
         <div className="rounded border border-[var(--line)] bg-white">
           <div className="flex items-center justify-between border-b border-[var(--line)] px-[18px] py-3.5">

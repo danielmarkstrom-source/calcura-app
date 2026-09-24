@@ -14,7 +14,7 @@ export default async function MaterialPage({ searchParams }: PageProps<"/materia
 
   const { data: membership } = await supabase
     .from("org_members")
-    .select("org_id, orgs(name)")
+    .select("org_id")
     .eq("user_id", user.id)
     .limit(1)
     .maybeSingle();
@@ -28,7 +28,6 @@ export default async function MaterialPage({ searchParams }: PageProps<"/materia
   }
 
   const orgId = membership.org_id as string;
-  const orgName = (membership as { orgs?: { name?: string } }).orgs?.name;
 
   const { data: rows } = await supabase
     .from("material_rows")
@@ -45,7 +44,7 @@ export default async function MaterialPage({ searchParams }: PageProps<"/materia
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-[var(--paper)]">
-      <AppHeader orgName={orgName} active="/material" title="Material" subtitle="Materialdatabas" />
+      <AppHeader userEmail={user.email} active="/material" title="Material" subtitle="Materialdatabas" />
       <main className="mx-auto w-full max-w-2xl flex-1 space-y-6 px-6 py-5">
         <p className="text-sm text-[var(--muted-2)]">
           En rad per kombination av ledningsslag, materialtyp och dimension, med ett exakt pris - inte en
