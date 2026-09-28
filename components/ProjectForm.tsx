@@ -30,6 +30,7 @@ export interface ExistingProject {
   servis: number;
   intrang: number;
   besiktning: number;
+  brunnar: number;
   schaktdjup: number;
   schaktbredd: number;
   slantH: number;
@@ -59,6 +60,7 @@ export default function ProjectForm({
   const [servis, setServis] = useState(project?.servis ?? 0);
   const [intrang, setIntrang] = useState(project?.intrang ?? 0);
   const [besiktning, setBesiktning] = useState(project?.besiktning ?? 0);
+  const [brunnar, setBrunnar] = useState(project?.brunnar ?? 0);
   const [schaktdjup, setSchaktdjup] = useState(project?.schaktdjup ?? 1.5);
   const [schaktbredd, setSchaktbredd] = useState(project?.schaktbredd ?? 1.0);
   const [slantH, setSlantH] = useState(project?.slantH ?? 1);
@@ -160,6 +162,7 @@ export default function ProjectForm({
       servis,
       intrang,
       besiktning,
+      brunnar,
       schaktdjup,
       schaktbredd,
       slantH,
@@ -177,6 +180,7 @@ export default function ProjectForm({
       servis,
       intrang,
       besiktning,
+      brunnar,
       schaktdjup,
       schaktbredd,
       slantH,
@@ -341,7 +345,7 @@ export default function ProjectForm({
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <div>
           <label className="block text-xs font-medium text-slate-600">Servisanslutningar (st)</label>
           <input type="number" name="servis" value={servis} onChange={(e) => setServis(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
@@ -353,6 +357,10 @@ export default function ProjectForm({
         <div>
           <label className="block text-xs font-medium text-slate-600">Besiktningar (st)</label>
           <input type="number" name="besiktning" value={besiktning} onChange={(e) => setBesiktning(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600">Brunnar (st)</label>
+          <input type="number" name="brunnar" value={brunnar} onChange={(e) => setBrunnar(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
       </div>
 

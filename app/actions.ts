@@ -236,6 +236,7 @@ function parseProjectForm(formData: FormData) {
   const servis = Number(formData.get("servis") || 0);
   const intrang = Number(formData.get("intrang") || 0);
   const besiktning = Number(formData.get("besiktning") || 0);
+  const brunnar = Number(formData.get("brunnar") || 0);
   const schaktdjup = Number(formData.get("schaktdjup") || 1.5);
   const schaktbredd = Number(formData.get("schaktbredd") || 1.0);
   const slantH = Number(formData.get("slantH") || 1);
@@ -281,6 +282,7 @@ function parseProjectForm(formData: FormData) {
     servis,
     intrang,
     besiktning,
+    brunnar,
     schaktdjup,
     schaktbredd,
     slantH,
@@ -316,6 +318,7 @@ export async function createProject(formData: FormData) {
     servis,
     intrang,
     besiktning,
+    brunnar,
     schaktdjup,
     schaktbredd,
     slantH,
@@ -337,6 +340,7 @@ export async function createProject(formData: FormData) {
     servis,
     intrang,
     besiktning,
+    brunnar,
     schaktdjup,
     schaktbredd,
     slantH,
@@ -360,6 +364,7 @@ export async function createProject(formData: FormData) {
     arstid,
     intrang,
     besiktning,
+    antal_brunnar: brunnar,
     antal_personer: antalPersoner,
     antal_maskiner: antalMaskiner,
     antal_lastbilar: antalLastbilar,
@@ -405,6 +410,7 @@ export async function updateProject(id: string, formData: FormData) {
     servis,
     intrang,
     besiktning,
+    brunnar,
     schaktdjup,
     schaktbredd,
     slantH,
@@ -426,6 +432,7 @@ export async function updateProject(id: string, formData: FormData) {
     servis,
     intrang,
     besiktning,
+    brunnar,
     schaktdjup,
     schaktbredd,
     slantH,
@@ -449,6 +456,7 @@ export async function updateProject(id: string, formData: FormData) {
       arstid,
       intrang,
       besiktning,
+      antal_brunnar: brunnar,
       antal_personer: antalPersoner,
       antal_maskiner: antalMaskiner,
       antal_lastbilar: antalLastbilar,

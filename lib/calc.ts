@@ -67,7 +67,9 @@ export interface Coef {
   krServis: number;
   krIntrang: number;
   krBesiktning: number;
+  krBrunn: number;
   dagServis: number;
+  dagBrunn: number;
   extraPipeDagarFaktor: number;
   fallBrytdjup: number;
   lastbilKapacitet: number;
@@ -92,7 +94,9 @@ export const DEFAULT_COEF: Coef = {
   krServis: 45000,
   krIntrang: 15000,
   krBesiktning: 3000,
+  krBrunn: 45000, // bara arbetsinsatsen att sätta brunnen - materialet hanteras som styckvara i ledningssträckorna
   dagServis: 1, // 1 dag per servisanslutning - påverkar bara tidsåtgången (dagar), inte kostnaden (krServis är redan en fast styckkostnad, se calcProject)
+  dagBrunn: 1,
   extraPipeDagarFaktor: 0.15,
   fallBrytdjup: 0.5,
   lastbilKapacitet: 10,
@@ -128,6 +132,7 @@ export interface ProjectInput {
   servis?: number;
   intrang?: number;
   besiktning?: number;
+  brunnar?: number;
   schaktdjup?: number;
   schaktbredd?: number;
   slantH?: number;
@@ -347,12 +352,17 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   const servisKostnad = (p.servis || 0) * coef.krServis * arstidFaktor;
   const intrangKostnad = p.intrangManuell != null ? p.intrangManuell : (p.intrang || 0) * coef.krIntrang; // ren schablonkostnad, ingen årstidspåverkan
   const besiktningKostnad = (p.besiktning || 0) * coef.krBesiktning; // ren schablonkostnad, ingen årstidspåverkan
+  // Bara arbetsinsatsen att sätta brunnen - materialet är redan en styckvara i
+  // ledningssträckorna. Räknas som servis: en fast styckkostnad plus ett dagstillägg,
+  // inte kopplat till schakttimmarna/förläggningstakten.
+  const brunnKostnad = (p.brunnar || 0) * coef.krBrunn * arstidFaktor;
   const servisDagar = (p.servis || 0) * coef.dagServis;
+  const brunnDagar = (p.brunnar || 0) * coef.dagBrunn;
 
-  const total = ledningKostnad + servisKostnad + intrangKostnad + besiktningKostnad;
+  const total = ledningKostnad + servisKostnad + brunnKostnad + intrangKostnad + besiktningKostnad;
   const co2 = ledningCO2 + (p.servis || 0) * 180;
   // Besiktning utförs av extern part och påverkar inte den egna schakttiden.
-  const dagar = ledningDagar + servisDagar;
+  const dagar = ledningDagar + servisDagar + brunnDagar;
 
   const materialKrPerM = pipeLangdSum > 0 ? materialTotalM / pipeLangdSum : 0;
   // Tjänster (kr/tim, se categoryRates) visas inte längre som egen rad - kostnaden
@@ -376,7 +386,7 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     {
       key: "schaktkostnad",
       label: "Schaktkostnad" + (tjansterArKanda ? " (tjänster: känd kostnad)" : ""),
-      value: servisKostnad + tjansterTotal,
+      value: servisKostnad + brunnKostnad + tjansterTotal,
       variable: tjansterArKanda ? 0 : tjansterTotal,
     },
     { key: "intrang", label: "Fastighetsintrång" + (p.intrangManuell != null ? " (känd kostnad)" : ""), value: intrangKostnad },
@@ -459,7 +469,9 @@ export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit
   { group: "Övriga kostnader", path: "krServis", label: "Per servisanslutning", unit: "kr/st" },
   { group: "Övriga kostnader", path: "krIntrang", label: "Per fastighetsintrång", unit: "kr/st" },
   { group: "Övriga kostnader", path: "krBesiktning", label: "Per besiktning", unit: "kr/st" },
+  { group: "Övriga kostnader", path: "krBrunn", label: "Per brunn (arbetsinsats)", unit: "kr/st" },
   { group: "Övriga kostnader", path: "dagServis", label: "Dagar per servisanslutning", unit: "dag/st", step: "0.1" },
+  { group: "Övriga kostnader", path: "dagBrunn", label: "Dagar per brunn", unit: "dag/st", step: "0.1" },
   { group: "Övriga kostnader", path: "osakerhet", label: "Osäkerhetsspann", unit: "%" },
 ];
 

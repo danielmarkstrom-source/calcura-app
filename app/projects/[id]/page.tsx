@@ -62,6 +62,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
         servis: project.servis,
         intrang: project.intrang,
         besiktning: project.besiktning,
+        brunnar: project.antal_brunnar,
         schaktdjup: project.schaktdjup,
         schaktbredd: project.schaktbredd,
         slantH: project.slant_h,
