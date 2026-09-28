@@ -203,6 +203,10 @@ export interface CalcPart {
   key: string;
   label: string;
   value: number;
+  // Hur mycket av `value` som är tidsdrivet (styrs av förläggningstakten och kan
+  // kalibreras mot faktiskt utfall). Resten av `value` är en fast schablon/projekterad
+  // kostnad som inte ska variera. Odefinierat/0 = hela posten är statisk.
+  variable?: number;
 }
 
 export interface CalcResult {
@@ -342,12 +346,18 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   // schablonen. Själva rate:n/kalkylen är oförändrad, bara vad den läggs ihop med
   // i visningen - ovrigtTotal/tidsdrivenTotal (kalibrering, framdrift) inkluderar
   // fortfarande tjansterTotal precis som förut.
+  //
+  // `variable` markerar hur mycket av varje post som är tidsdrivet (styrs av
+  // förläggningstakten, kan kalibreras mot utfall) kontra en fast schablon/
+  // projekterad kostnad: Arbetstid och Maskinkostnad är helt tidsdrivna, Schaktkostnad
+  // bara i sin tjänstedel (krServis-schablonen är fast), Material/Anläggningsmaterial/
+  // Fastighetsintrång/Besiktning är helt statiska (bygger på projekteringen).
   const parts: CalcPart[] = [
     { key: "material", label: hasStyckItems ? "Material (meter- och styckvaror)" : `Material (snitt ${formatKr(materialKrPerM)}/m)`, value: materialTotal },
-    { key: "arbetstid", label: "Arbetstid", value: arbetstidTotal },
+    { key: "arbetstid", label: "Arbetstid", value: arbetstidTotal, variable: arbetstidTotal },
     { key: "anlaggningsmaterial", label: "Anläggningsmaterial", value: anlaggningsTotal },
-    { key: "maskinkostnad", label: "Maskinkostnader", value: maskinTotal },
-    { key: "schaktkostnad", label: "Schaktkostnad", value: servisKostnad + tjansterTotal },
+    { key: "maskinkostnad", label: "Maskinkostnader", value: maskinTotal, variable: maskinTotal },
+    { key: "schaktkostnad", label: "Schaktkostnad", value: servisKostnad + tjansterTotal, variable: tjansterTotal },
     { key: "intrang", label: "Fastighetsintrång", value: intrangKostnad },
     { key: "besiktning", label: "Besiktning", value: besiktningKostnad },
   ];
@@ -448,12 +458,17 @@ export function calcProjectDisplay(
   const cal = getCalibration(projectsForCalibration);
   if (!coef.calibrationEnabled || cal.n === 0) return { ...raw, calibration: cal };
   const f = cal.factor;
-  // Materialkostnaden bygger på faktiska priser ur materialdatabasen och kalibreras aldrig -
-  // bara de schablonbaserade posterna (arbetstid/maskin/anläggning/tjänster/servis/intrång/besiktning).
+  // Bara den tidsdrivna delen av varje post (se `variable` på CalcPart - Arbetstid,
+  // Maskinkostnad och tjänstedelen av Schaktkostnad) kalibreras mot utfall. Material,
+  // Anläggningsmaterial, Fastighetsintrång och Besiktning bygger på projekteringen och
+  // ska inte variera, oavsett hur tidigare projekt har slagit ut.
+  const parts = raw.parts.map((pt) => {
+    const variable = pt.variable ?? 0;
+    return { ...pt, value: pt.value - variable + variable * f };
+  });
+  const total = parts.reduce((a, pt) => a + pt.value, 0);
   const materialTotal = raw.materialTotal;
-  const nonMaterialRaw = raw.total - raw.materialTotal;
-  const total = materialTotal + nonMaterialRaw * f;
-  const ovrigtTotal = raw.ovrigtTotal * f;
+  const ovrigtTotal = total - materialTotal;
   return {
     ...raw,
     total,
@@ -462,7 +477,7 @@ export function calcProjectDisplay(
     krPerMeter: raw.langdTotal > 0 ? total / raw.langdTotal : 0,
     materialTotal,
     ovrigtTotal,
-    parts: raw.parts.map((pt) => (pt.key === "material" ? pt : { ...pt, value: pt.value * f })),
+    parts,
     calibration: cal,
   };
 }

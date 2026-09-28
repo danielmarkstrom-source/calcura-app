@@ -17,8 +17,10 @@ export default function CoefForm({ coef, calibration }: { coef: Coef; calibratio
           Använd kalibrering mot utfall
         </label>
         <p className="mt-1 text-xs text-slate-500">
-          Justerar arbetstid/maskin/tjänster/anläggning m.m. (inte materialpriser) utifrån hur mycket
-          faktiskt utfall avvikit från prognoserna på avslutade projekt.
+          Justerar bara de tidsdrivna posterna (arbetstid, maskinkostnad och tjänstedelen av
+          schaktkostnad) utifrån hur mycket faktiskt utfall avvikit från prognoserna på avslutade
+          projekt. Material, anläggningsmaterial, fastighetsintrång och besiktning bygger på
+          projekteringen och kalibreras aldrig.
         </p>
         <p className="mt-2 font-mono text-xs text-slate-600">
           {calibration.n === 0 ? "Ingen data ännu" : `Faktor ${calibration.factor.toFixed(3)}× baserat på ${calibration.n} avslutade projekt`}
