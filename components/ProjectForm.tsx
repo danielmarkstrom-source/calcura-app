@@ -145,11 +145,14 @@ export default function ProjectForm({
     () => calcProjectDisplay(projectInput, effectiveCoef, materialDB, calibrationProjects),
     [projectInput, effectiveCoef, materialDB, calibrationProjects]
   );
+  // Årstidsfaktorerna (perProject: false) går bara att ändra på huvudnivån (Inställningar) -
+  // här väljer projektet bara vilken årstid som gäller (fältet `arstid` nedan).
+  const projectOverrideFields = useMemo(() => OVERRIDE_FIELDS.filter((f) => f.perProject !== false), []);
   const overrideGroups = useMemo(
-    () => OVERRIDE_FIELDS.reduce<string[]>((acc, f) => (acc.includes(f.group) ? acc : [...acc, f.group]), []),
-    []
+    () => projectOverrideFields.reduce<string[]>((acc, f) => (acc.includes(f.group) ? acc : [...acc, f.group]), []),
+    [projectOverrideFields]
   );
-  const activeOverrideCount = OVERRIDE_FIELDS.filter((f) => getCoefByPath(coefOverrides, f.path) !== undefined).length;
+  const activeOverrideCount = projectOverrideFields.filter((f) => getCoefByPath(coefOverrides, f.path) !== undefined).length;
 
   return (
     <form action={createProject} className="space-y-6">
@@ -379,7 +382,7 @@ export default function ProjectForm({
               <div key={g}>
                 <h3 className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{g}</h3>
                 <div className="mt-1 space-y-1">
-                  {OVERRIDE_FIELDS.filter((f) => f.group === g).map((f) => {
+                  {projectOverrideFields.filter((f) => f.group === g).map((f) => {
                     const globalVal = getCoefByPath(coef, f.path) as number;
                     const overrideVal = getCoefByPath(coefOverrides, f.path) as number | undefined;
                     const isOverridden = overrideVal !== undefined;

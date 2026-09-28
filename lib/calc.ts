@@ -328,7 +328,7 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
 
   const servisKostnad = (p.servis || 0) * coef.krServis * arstidFaktor;
   const intrangKostnad = (p.intrang || 0) * coef.krIntrang; // ren schablonkostnad, ingen årstidspåverkan
-  const besiktningKostnad = (p.besiktning || 0) * coef.krBesiktning * arstidFaktor;
+  const besiktningKostnad = (p.besiktning || 0) * coef.krBesiktning; // ren schablonkostnad, ingen årstidspåverkan
   const servisDagar = (p.servis || 0) * coef.dagServis;
 
   const total = ledningKostnad + servisKostnad + intrangKostnad + besiktningKostnad;
@@ -401,7 +401,11 @@ export function getCoefByPath(obj: unknown, path: string): unknown {
 }
 
 // Lista över override:bara fält och deras etikett/enhet/grupp - används av "avancerat"-formuläret.
-export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit: string; step?: string }[] = [
+// perProject: false betyder att fältet bara går att ändra på huvudnivån (globala Inställningar,
+// components/CoefForm.tsx) - det visas inte i projektets egna "avancerat"-formulär
+// (components/ProjectForm.tsx). Används för årstidsfaktorerna: projektet väljer bara VILKEN
+// årstid som gäller (fältet `arstid`), själva faktorn bakom varje årstid styrs centralt.
+export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit: string; step?: string; perProject?: boolean }[] = [
   { group: "Kategorikostnader", path: "categoryRates.arbetstid", label: "Arbetstid", unit: "kr/tim" },
   { group: "Kategorikostnader", path: "categoryRates.maskinkostnad", label: "Maskinkostnad", unit: "kr/tim" },
   { group: "Kategorikostnader", path: "categoryRates.tjanster", label: "Tjänster", unit: "kr/tim" },
@@ -411,10 +415,10 @@ export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit
   { group: "Förläggningstakt", path: "dagstaktMark.gatumark", label: "Gatumark", unit: "m/dag" },
   { group: "Förläggningstakt", path: "dagstaktMark.skogsmark", label: "Skogsmark", unit: "m/dag" },
   { group: "Förläggningstakt", path: "dagstaktMark.jordbruksmark", label: "Jordbruksmark", unit: "m/dag" },
-  { group: "Årstidsfaktor", path: "arstid.var", label: "Vår", unit: "×", step: "0.05" },
-  { group: "Årstidsfaktor", path: "arstid.sommar", label: "Sommar", unit: "×", step: "0.05" },
-  { group: "Årstidsfaktor", path: "arstid.host", label: "Höst", unit: "×", step: "0.05" },
-  { group: "Årstidsfaktor", path: "arstid.vinter", label: "Vinter", unit: "×", step: "0.05" },
+  { group: "Årstidsfaktor", path: "arstid.var", label: "Vår", unit: "×", step: "0.05", perProject: false },
+  { group: "Årstidsfaktor", path: "arstid.sommar", label: "Sommar", unit: "×", step: "0.05", perProject: false },
+  { group: "Årstidsfaktor", path: "arstid.host", label: "Höst", unit: "×", step: "0.05", perProject: false },
+  { group: "Årstidsfaktor", path: "arstid.vinter", label: "Vinter", unit: "×", step: "0.05", perProject: false },
   { group: "Massberäkning", path: "fallBrytdjup", label: "Brytdjup Fall A / Fall B", unit: "m", step: "0.1" },
   { group: "Massberäkning", path: "lastbilKapacitet", label: "Lastbilskapacitet", unit: "m³/lass" },
   { group: "Massberäkning", path: "anlaggningsmaterialM3PerM3", label: "Anläggningsmaterial per m³ Fall B", unit: "m³/m³", step: "0.05" },
