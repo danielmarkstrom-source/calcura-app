@@ -71,7 +71,6 @@ export interface Coef {
   fallBrytdjup: number;
   lastbilKapacitet: number;
   anlaggningsmaterialM3PerM3: number;
-  dagBesiktning: number;
   osakerhet: number;
   calibrationEnabled: boolean;
 }
@@ -97,7 +96,6 @@ export const DEFAULT_COEF: Coef = {
   fallBrytdjup: 0.5,
   lastbilKapacitet: 10,
   anlaggningsmaterialM3PerM3: 1.0,
-  dagBesiktning: 0.1,
   osakerhet: 15,
   calibrationEnabled: true,
 };
@@ -332,11 +330,11 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   const intrangKostnad = (p.intrang || 0) * coef.krIntrang; // ren schablonkostnad, ingen årstidspåverkan
   const besiktningKostnad = (p.besiktning || 0) * coef.krBesiktning * arstidFaktor;
   const servisDagar = (p.servis || 0) * coef.dagServis;
-  const besiktningDagar = (p.besiktning || 0) * coef.dagBesiktning;
 
   const total = ledningKostnad + servisKostnad + intrangKostnad + besiktningKostnad;
   const co2 = ledningCO2 + (p.servis || 0) * 180;
-  const dagar = ledningDagar + servisDagar + besiktningDagar;
+  // Besiktning utförs av extern part och påverkar inte den egna schakttiden.
+  const dagar = ledningDagar + servisDagar;
 
   const materialKrPerM = pipeLangdSum > 0 ? materialTotalM / pipeLangdSum : 0;
   // Tjänster (kr/tim, se categoryRates) visas inte längre som egen rad - kostnaden
@@ -424,7 +422,6 @@ export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit
   { group: "Övriga kostnader", path: "krIntrang", label: "Per fastighetsintrång", unit: "kr/st" },
   { group: "Övriga kostnader", path: "krBesiktning", label: "Per besiktning", unit: "kr/st" },
   { group: "Övriga kostnader", path: "dagServis", label: "Dagar per servisanslutning", unit: "dag/st", step: "0.1" },
-  { group: "Övriga kostnader", path: "dagBesiktning", label: "Dagar per besiktning", unit: "dag/st", step: "0.1" },
   { group: "Övriga kostnader", path: "osakerhet", label: "Osäkerhetsspann", unit: "%" },
 ];
 
