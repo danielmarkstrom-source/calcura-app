@@ -38,6 +38,8 @@ export interface ExistingProject {
   antalMaskiner: number;
   poster: Post[];
   coefOverrides: CoefOverrides;
+  tjansterManuell?: number | null;
+  intrangManuell?: number | null;
 }
 
 export default function ProjectForm({
@@ -64,6 +66,10 @@ export default function ProjectForm({
   const [antalMaskiner, setAntalMaskiner] = useState(project?.antalMaskiner ?? 1);
   const [poster, setPoster] = useState<Post[]>(project?.poster ?? []);
   const [coefOverrides, setCoefOverrides] = useState<CoefOverrides>(project?.coefOverrides ?? {});
+  // Känd faktisk kostnad (t.ex. en offert) - textfält som strängar så fältet kan vara
+  // tomt (= använd schablonen). Tomt/ogiltigt tolkas som null vid beräkning och spara.
+  const [tjansterManuell, setTjansterManuell] = useState(project?.tjansterManuell != null ? String(project.tjansterManuell) : "");
+  const [intrangManuell, setIntrangManuell] = useState(project?.intrangManuell != null ? String(project.intrangManuell) : "");
   const [advOpen, setAdvOpen] = useState(false);
   const formAction = project ? updateProject.bind(null, project.id) : createProject;
 
@@ -143,6 +149,8 @@ export default function ProjectForm({
     updatePost(id, { dimension, enhet: row?.enhet ?? "m" });
   }
 
+  const tjansterManuellNum = tjansterManuell === "" ? null : Number(tjansterManuell);
+  const intrangManuellNum = intrangManuell === "" ? null : Number(intrangManuell);
   const projectInput = useMemo(
     () => ({
       poster,
@@ -157,8 +165,25 @@ export default function ProjectForm({
       antalPersoner,
       antalMaskiner,
       coefOverrides,
+      tjansterManuell: tjansterManuellNum,
+      intrangManuell: intrangManuellNum,
     }),
-    [poster, arstid, servis, intrang, besiktning, schaktdjup, schaktbredd, slantH, slantV, antalPersoner, antalMaskiner, coefOverrides]
+    [
+      poster,
+      arstid,
+      servis,
+      intrang,
+      besiktning,
+      schaktdjup,
+      schaktbredd,
+      slantH,
+      slantV,
+      antalPersoner,
+      antalMaskiner,
+      coefOverrides,
+      tjansterManuellNum,
+      intrangManuellNum,
+    ]
   );
   const effectiveCoef = useMemo(() => effCoef(coef, { coefOverrides }), [coef, coefOverrides]);
   const calc = useMemo(
@@ -324,6 +349,38 @@ export default function ProjectForm({
         <div>
           <label className="block text-xs font-medium text-slate-600">Besiktningar (st)</label>
           <input type="number" name="besiktning" value={besiktning} onChange={(e) => setBesiktning(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Kända kostnader (valfritt)</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Fyll i när den faktiska kostnaden är känd (t.ex. en offert) - används då istället för
+          schablonen. Lämna tomt för att räkna som vanligt.
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Tjänster (kr)</label>
+            <input
+              type="number"
+              name="tjansterManuell"
+              value={tjansterManuell}
+              onChange={(e) => setTjansterManuell(e.target.value)}
+              placeholder="schablon"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Fastighetsintrång (kr)</label>
+            <input
+              type="number"
+              name="intrangManuell"
+              value={intrangManuell}
+              onChange={(e) => setIntrangManuell(e.target.value)}
+              placeholder="schablon"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
         </div>
       </div>
 

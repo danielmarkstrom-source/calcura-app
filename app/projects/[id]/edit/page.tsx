@@ -83,6 +83,8 @@ export default async function EditProjectPage({ params }: PageProps<"/projects/[
               antalMaskiner: project.antal_maskiner,
               poster: project.poster || [],
               coefOverrides: project.coef_overrides || {},
+              tjansterManuell: project.tjanster_manuell,
+              intrangManuell: project.intrang_manuell,
             }}
           />
         </div>

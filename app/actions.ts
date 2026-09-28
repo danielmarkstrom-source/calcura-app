@@ -243,6 +243,12 @@ function parseProjectForm(formData: FormData) {
   const antalPersoner = Number(formData.get("antalPersoner") || 3);
   const antalMaskiner = Number(formData.get("antalMaskiner") || 1);
 
+  // Känd faktisk kostnad (valfri) - tomt fält = null = använd schablonen som vanligt.
+  const tjansterManuellRaw = formData.get("tjansterManuell");
+  const tjansterManuell = tjansterManuellRaw === null || tjansterManuellRaw === "" ? null : Number(tjansterManuellRaw);
+  const intrangManuellRaw = formData.get("intrangManuell");
+  const intrangManuell = intrangManuellRaw === null || intrangManuellRaw === "" ? null : Number(intrangManuellRaw);
+
   let poster: Post[] = [];
   const parsed = JSON.parse(String(formData.get("posterJson") || "[]"));
   if (Array.isArray(parsed)) {
@@ -268,7 +274,23 @@ function parseProjectForm(formData: FormData) {
     coefOverrides = {};
   }
 
-  return { namn, arstid, servis, intrang, besiktning, schaktdjup, schaktbredd, slantH, slantV, antalPersoner, antalMaskiner, poster, coefOverrides };
+  return {
+    namn,
+    arstid,
+    servis,
+    intrang,
+    besiktning,
+    schaktdjup,
+    schaktbredd,
+    slantH,
+    slantV,
+    antalPersoner,
+    antalMaskiner,
+    poster,
+    coefOverrides,
+    tjansterManuell,
+    intrangManuell,
+  };
 }
 
 /**
@@ -286,7 +308,23 @@ export async function createProject(formData: FormData) {
   } catch {
     return;
   }
-  const { namn, arstid, servis, intrang, besiktning, schaktdjup, schaktbredd, slantH, slantV, antalPersoner, antalMaskiner, poster, coefOverrides } = fields;
+  const {
+    namn,
+    arstid,
+    servis,
+    intrang,
+    besiktning,
+    schaktdjup,
+    schaktbredd,
+    slantH,
+    slantV,
+    antalPersoner,
+    antalMaskiner,
+    poster,
+    coefOverrides,
+    tjansterManuell,
+    intrangManuell,
+  } = fields;
 
   const { coef, materialDB, projectsForCalibration } = await getOrgCalcContext(supabase, orgId);
 
@@ -303,6 +341,8 @@ export async function createProject(formData: FormData) {
     antalPersoner,
     antalMaskiner,
     coefOverrides,
+    tjansterManuell,
+    intrangManuell,
   };
 
   const calc = calcProjectDisplay(projectInput, effCoef(coef, { coefOverrides }), materialDB, projectsForCalibration);
@@ -323,6 +363,8 @@ export async function createProject(formData: FormData) {
     schaktbredd,
     slant_h: slantH,
     slant_v: slantV,
+    tjanster_manuell: tjansterManuell,
+    intrang_manuell: intrangManuell,
     prognos_total: calc.total,
     prognos_snapshot: calc,
     framdrift: [],
@@ -352,7 +394,23 @@ export async function updateProject(id: string, formData: FormData) {
   } catch {
     return;
   }
-  const { namn, arstid, servis, intrang, besiktning, schaktdjup, schaktbredd, slantH, slantV, antalPersoner, antalMaskiner, poster, coefOverrides } = fields;
+  const {
+    namn,
+    arstid,
+    servis,
+    intrang,
+    besiktning,
+    schaktdjup,
+    schaktbredd,
+    slantH,
+    slantV,
+    antalPersoner,
+    antalMaskiner,
+    poster,
+    coefOverrides,
+    tjansterManuell,
+    intrangManuell,
+  } = fields;
 
   const { coef, materialDB, projectsForCalibration } = await getOrgCalcContext(supabase, orgId);
 
@@ -369,6 +427,8 @@ export async function updateProject(id: string, formData: FormData) {
     antalPersoner,
     antalMaskiner,
     coefOverrides,
+    tjansterManuell,
+    intrangManuell,
   };
 
   const calc = calcProjectDisplay(projectInput, effCoef(coef, { coefOverrides }), materialDB, projectsForCalibration);
@@ -389,6 +449,8 @@ export async function updateProject(id: string, formData: FormData) {
       schaktbredd,
       slant_h: slantH,
       slant_v: slantV,
+      tjanster_manuell: tjansterManuell,
+      intrang_manuell: intrangManuell,
       prognos_total: calc.total,
       prognos_snapshot: calc,
     })

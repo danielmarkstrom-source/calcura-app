@@ -134,6 +134,11 @@ export interface ProjectInput {
   antalPersoner?: number;
   antalMaskiner?: number;
   coefOverrides?: CoefOverrides;
+  // Känd faktisk kostnad, används istället för schablonen när den är ifylld (t.ex. en
+  // offert/faktura för tjänster eller en förhandlad intrångsersättning). null/odefinierat
+  // = räkna som vanligt med schablonen.
+  tjansterManuell?: number | null;
+  intrangManuell?: number | null;
 }
 
 export interface ProjectRecord extends ProjectInput {
@@ -325,13 +330,16 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   // ger färre timmar och därmed automatiskt lägre arbetstids-/maskin-/tjänstekostnad.
   const arbetstidTotal = schakttimmar * antalPersoner * (coef.categoryRates.arbetstid || 0);
   const maskinTotal = schakttimmar * antalMaskiner * (coef.categoryRates.maskinkostnad || 0);
-  const tjansterTotal = schakttimmar * (coef.categoryRates.tjanster || 0);
+  // Om en känd faktisk kostnad är ifylld (t.ex. en offert) används den istället för
+  // schablonen - och räknas då inte längre som tidsdriven (se `variable` på parts nedan).
+  const tjansterArKanda = p.tjansterManuell != null;
+  const tjansterTotal = tjansterArKanda ? (p.tjansterManuell as number) : schakttimmar * (coef.categoryRates.tjanster || 0);
   const anlaggningsTotal = massor.anlaggningsmaterialBehov * (coef.categoryRates.anlaggningsmaterial || 0);
   const ovrigtTotal = arbetstidTotal + maskinTotal + anlaggningsTotal + tjansterTotal;
   const ledningKostnad = materialTotal + ovrigtTotal;
 
   const servisKostnad = (p.servis || 0) * coef.krServis * arstidFaktor;
-  const intrangKostnad = (p.intrang || 0) * coef.krIntrang; // ren schablonkostnad, ingen årstidspåverkan
+  const intrangKostnad = p.intrangManuell != null ? p.intrangManuell : (p.intrang || 0) * coef.krIntrang; // ren schablonkostnad, ingen årstidspåverkan
   const besiktningKostnad = (p.besiktning || 0) * coef.krBesiktning; // ren schablonkostnad, ingen årstidspåverkan
   const servisDagar = (p.servis || 0) * coef.dagServis;
 
@@ -351,14 +359,21 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   // förläggningstakten, kan kalibreras mot utfall) kontra en fast schablon/
   // projekterad kostnad: Arbetstid och Maskinkostnad är helt tidsdrivna, Schaktkostnad
   // bara i sin tjänstedel (krServis-schablonen är fast), Material/Anläggningsmaterial/
-  // Fastighetsintrång/Besiktning är helt statiska (bygger på projekteringen).
+  // Fastighetsintrång/Besiktning är helt statiska (bygger på projekteringen). En ifylld
+  // känd kostnad (tjänster/intrång) är per definition inte längre tidsdriven/schablon -
+  // den ska varken kalibreras eller räknas om av framdriften.
   const parts: CalcPart[] = [
     { key: "material", label: hasStyckItems ? "Material (meter- och styckvaror)" : `Material (snitt ${formatKr(materialKrPerM)}/m)`, value: materialTotal },
     { key: "arbetstid", label: "Arbetstid", value: arbetstidTotal, variable: arbetstidTotal },
     { key: "anlaggningsmaterial", label: "Anläggningsmaterial", value: anlaggningsTotal },
     { key: "maskinkostnad", label: "Maskinkostnader", value: maskinTotal, variable: maskinTotal },
-    { key: "schaktkostnad", label: "Schaktkostnad", value: servisKostnad + tjansterTotal, variable: tjansterTotal },
-    { key: "intrang", label: "Fastighetsintrång", value: intrangKostnad },
+    {
+      key: "schaktkostnad",
+      label: "Schaktkostnad" + (tjansterArKanda ? " (tjänster: känd kostnad)" : ""),
+      value: servisKostnad + tjansterTotal,
+      variable: tjansterArKanda ? 0 : tjansterTotal,
+    },
+    { key: "intrang", label: "Fastighetsintrång" + (p.intrangManuell != null ? " (känd kostnad)" : ""), value: intrangKostnad },
     { key: "besiktning", label: "Besiktning", value: besiktningKostnad },
   ];
 
@@ -379,7 +394,9 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     antalPersoner,
     antalMaskiner,
     ledningDagar,
-    tidsdrivenTotal: arbetstidTotal + maskinTotal + tjansterTotal,
+    // Summan av parts' `variable`-fält - så en ifylld känd kostnad (som inte längre är
+    // tidsdriven) automatiskt utesluts, utan att dubbla den logiken här.
+    tidsdrivenTotal: parts.reduce((a, pt) => a + (pt.variable ?? 0), 0),
   };
 }
 

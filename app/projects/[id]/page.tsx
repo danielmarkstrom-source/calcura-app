@@ -69,6 +69,8 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
         antalPersoner: project.antal_personer,
         antalMaskiner: project.antal_maskiner,
         coefOverrides: project.coef_overrides,
+        tjansterManuell: project.tjanster_manuell,
+        intrangManuell: project.intrang_manuell,
       },
       effCoef(globalCoef, { coefOverrides: project.coef_overrides }),
       materialDB,
