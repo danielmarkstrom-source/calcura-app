@@ -70,6 +70,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
         antalPersoner: project.antal_personer,
         antalMaskiner: project.antal_maskiner,
         antalLastbilar: project.antal_lastbilar,
+        hyresdagarSchaktslede: project.schaktslede_hyresdagar,
         coefOverrides: project.coef_overrides,
         tjansterManuell: project.tjanster_manuell,
         intrangManuell: project.intrang_manuell,

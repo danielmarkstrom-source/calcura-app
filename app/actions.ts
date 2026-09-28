@@ -244,6 +244,7 @@ function parseProjectForm(formData: FormData) {
   const antalPersoner = Number(formData.get("antalPersoner") || 3);
   const antalMaskiner = Number(formData.get("antalMaskiner") || 1);
   const antalLastbilar = Number(formData.get("antalLastbilar") || 0);
+  const hyresdagarSchaktslede = Number(formData.get("hyresdagarSchaktslede") || 0);
 
   // Känd faktisk kostnad (valfri) - tomt fält = null = använd schablonen som vanligt.
   const tjansterManuellRaw = formData.get("tjansterManuell");
@@ -290,6 +291,7 @@ function parseProjectForm(formData: FormData) {
     antalPersoner,
     antalMaskiner,
     antalLastbilar,
+    hyresdagarSchaktslede,
     poster,
     coefOverrides,
     tjansterManuell,
@@ -326,6 +328,7 @@ export async function createProject(formData: FormData) {
     antalPersoner,
     antalMaskiner,
     antalLastbilar,
+    hyresdagarSchaktslede,
     poster,
     coefOverrides,
     tjansterManuell,
@@ -348,6 +351,7 @@ export async function createProject(formData: FormData) {
     antalPersoner,
     antalMaskiner,
     antalLastbilar,
+    hyresdagarSchaktslede,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
@@ -368,6 +372,7 @@ export async function createProject(formData: FormData) {
     antal_personer: antalPersoner,
     antal_maskiner: antalMaskiner,
     antal_lastbilar: antalLastbilar,
+    schaktslede_hyresdagar: hyresdagarSchaktslede,
     coef_overrides: coefOverrides,
     schaktdjup,
     schaktbredd,
@@ -418,6 +423,7 @@ export async function updateProject(id: string, formData: FormData) {
     antalPersoner,
     antalMaskiner,
     antalLastbilar,
+    hyresdagarSchaktslede,
     poster,
     coefOverrides,
     tjansterManuell,
@@ -440,6 +446,7 @@ export async function updateProject(id: string, formData: FormData) {
     antalPersoner,
     antalMaskiner,
     antalLastbilar,
+    hyresdagarSchaktslede,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
@@ -460,6 +467,7 @@ export async function updateProject(id: string, formData: FormData) {
       antal_personer: antalPersoner,
       antal_maskiner: antalMaskiner,
       antal_lastbilar: antalLastbilar,
+      schaktslede_hyresdagar: hyresdagarSchaktslede,
       coef_overrides: coefOverrides,
       schaktdjup,
       schaktbredd,

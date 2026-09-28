@@ -38,6 +38,7 @@ export interface ExistingProject {
   antalPersoner: number;
   antalMaskiner: number;
   antalLastbilar: number;
+  hyresdagarSchaktslede: number;
   poster: Post[];
   coefOverrides: CoefOverrides;
   tjansterManuell?: number | null;
@@ -68,6 +69,7 @@ export default function ProjectForm({
   const [antalPersoner, setAntalPersoner] = useState(project?.antalPersoner ?? 3);
   const [antalMaskiner, setAntalMaskiner] = useState(project?.antalMaskiner ?? 1);
   const [antalLastbilar, setAntalLastbilar] = useState(project?.antalLastbilar ?? 0);
+  const [hyresdagarSchaktslede, setHyresdagarSchaktslede] = useState(project?.hyresdagarSchaktslede ?? 0);
   const [poster, setPoster] = useState<Post[]>(project?.poster ?? []);
   const [coefOverrides, setCoefOverrides] = useState<CoefOverrides>(project?.coefOverrides ?? {});
   // Känd faktisk kostnad (t.ex. en offert) - textfält som strängar så fältet kan vara
@@ -170,6 +172,7 @@ export default function ProjectForm({
       antalPersoner,
       antalMaskiner,
       antalLastbilar,
+      hyresdagarSchaktslede,
       coefOverrides,
       tjansterManuell: tjansterManuellNum,
       intrangManuell: intrangManuellNum,
@@ -188,6 +191,7 @@ export default function ProjectForm({
       antalPersoner,
       antalMaskiner,
       antalLastbilar,
+      hyresdagarSchaktslede,
       coefOverrides,
       tjansterManuellNum,
       intrangManuellNum,
@@ -421,6 +425,20 @@ export default function ProjectForm({
             <input type="number" name="antalLastbilar" value={antalLastbilar} onChange={(e) => setAntalLastbilar(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
           </div>
         </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-slate-600">Schaktsläde - hyresdagar</label>
+        <input
+          type="number"
+          name="hyresdagarSchaktslede"
+          value={hyresdagarSchaktslede}
+          onChange={(e) => setHyresdagarSchaktslede(Number(e.target.value))}
+          className="mt-1 w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+        <p className="mt-1 text-xs text-slate-500">
+          Hyrestiden sätts fritt - inte kopplad till den beräknade schakttiden.
+        </p>
       </div>
 
       <div>
