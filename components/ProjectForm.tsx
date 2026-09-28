@@ -14,6 +14,7 @@ import {
   slagLabel,
   type Coef,
   type CoefOverrides,
+  type FritextPost,
   type MaterialRow,
   type Post,
 } from "@/lib/calc";
@@ -40,6 +41,7 @@ export interface ExistingProject {
   antalLastbilar: number;
   hyresdagarSchaktslede: number;
   poster: Post[];
+  fritextposter: FritextPost[];
   coefOverrides: CoefOverrides;
   tjansterManuell?: number | null;
   intrangManuell?: number | null;
@@ -71,6 +73,7 @@ export default function ProjectForm({
   const [antalLastbilar, setAntalLastbilar] = useState(project?.antalLastbilar ?? 0);
   const [hyresdagarSchaktslede, setHyresdagarSchaktslede] = useState(project?.hyresdagarSchaktslede ?? 0);
   const [poster, setPoster] = useState<Post[]>(project?.poster ?? []);
+  const [fritextposter, setFritextposter] = useState<FritextPost[]>(project?.fritextposter ?? []);
   const [coefOverrides, setCoefOverrides] = useState<CoefOverrides>(project?.coefOverrides ?? {});
   // Känd faktisk kostnad (t.ex. en offert) - textfält som strängar så fältet kan vara
   // tomt (= använd schablonen). Tomt/ogiltigt tolkas som null vid beräkning och spara.
@@ -105,6 +108,16 @@ export default function ProjectForm({
       }
       return next as CoefOverrides;
     });
+  }
+
+  function addFritextpost() {
+    setFritextposter((f) => [...f, { id: uid(), namn: "", belopp: 0 }]);
+  }
+  function updateFritextpost(id: string, patch: Partial<FritextPost>) {
+    setFritextposter((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+  function removeFritextpost(id: string) {
+    setFritextposter((rows) => rows.filter((r) => r.id !== id));
   }
 
   const slags = useMemo(() => Array.from(new Set(materialDB.map((r) => r.slag))), [materialDB]);
@@ -173,6 +186,7 @@ export default function ProjectForm({
       antalMaskiner,
       antalLastbilar,
       hyresdagarSchaktslede,
+      fritextposter,
       coefOverrides,
       tjansterManuell: tjansterManuellNum,
       intrangManuell: intrangManuellNum,
@@ -192,6 +206,7 @@ export default function ProjectForm({
       antalMaskiner,
       antalLastbilar,
       hyresdagarSchaktslede,
+      fritextposter,
       coefOverrides,
       tjansterManuellNum,
       intrangManuellNum,
@@ -215,6 +230,7 @@ export default function ProjectForm({
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="posterJson" value={JSON.stringify(poster)} />
       <input type="hidden" name="coefOverridesJson" value={JSON.stringify(coefOverrides)} />
+      <input type="hidden" name="fritextposterJson" value={JSON.stringify(fritextposter)} />
 
       <div>
         <label className="block text-sm font-medium text-slate-700">Projektnamn</label>
@@ -469,6 +485,42 @@ export default function ProjectForm({
           Fall A {calc.massor.fallAVolym.toFixed(1)} m³ · Fall B {calc.massor.fallBVolym.toFixed(1)} m³ · anläggningsmaterial{" "}
           {calc.massor.anlaggningsmaterialBehov.toFixed(1)} m³
         </p>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Övriga kostnader (fritext)</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Egna kostnadsposter utöver de fördefinierade kategorierna, t.ex. trafikanordningsplan
+          eller extra konsultarvode. Visas som egna rader i kostnadsuppställningen.
+        </p>
+        {fritextposter.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {fritextposter.map((f) => (
+              <div key={f.id} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={f.namn}
+                  onChange={(e) => updateFritextpost(f.id, { namn: e.target.value })}
+                  placeholder="Beskrivning"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+                <input
+                  type="number"
+                  value={f.belopp}
+                  onChange={(e) => updateFritextpost(f.id, { belopp: Number(e.target.value) })}
+                  placeholder="kr"
+                  className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+                <button type="button" onClick={() => removeFritextpost(f.id)} className="text-red-500 hover:text-red-700" aria-label="Ta bort post">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <button type="button" onClick={addFritextpost} className="mt-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700">
+          + Lägg till post
+        </button>
       </div>
 
       <div>

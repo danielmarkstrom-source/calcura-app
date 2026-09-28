@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { calcProjectDisplay, deepMergeCoef, effCoef, DEFAULT_COEF, OVERRIDE_FIELDS, type Coef, type CoefOverrides, type MaterialRow, type Post } from "@/lib/calc";
+import { calcProjectDisplay, deepMergeCoef, effCoef, DEFAULT_COEF, OVERRIDE_FIELDS, type Coef, type CoefOverrides, type FritextPost, type MaterialRow, type Post } from "@/lib/calc";
 
 export type ActionState = { error?: string; success?: boolean } | undefined;
 
@@ -277,6 +277,14 @@ function parseProjectForm(formData: FormData) {
     coefOverrides = {};
   }
 
+  let fritextposter: FritextPost[] = [];
+  const parsedFritext = JSON.parse(String(formData.get("fritextposterJson") || "[]"));
+  if (Array.isArray(parsedFritext)) {
+    fritextposter = parsedFritext
+      .filter((f) => f && String(f.namn || "").trim())
+      .map((f, i) => ({ id: String(f.id || `f${i}`), namn: String(f.namn).trim(), belopp: Number(f.belopp) || 0 }));
+  }
+
   return {
     namn,
     arstid,
@@ -293,6 +301,7 @@ function parseProjectForm(formData: FormData) {
     antalLastbilar,
     hyresdagarSchaktslede,
     poster,
+    fritextposter,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
@@ -330,6 +339,7 @@ export async function createProject(formData: FormData) {
     antalLastbilar,
     hyresdagarSchaktslede,
     poster,
+    fritextposter,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
@@ -352,6 +362,7 @@ export async function createProject(formData: FormData) {
     antalMaskiner,
     antalLastbilar,
     hyresdagarSchaktslede,
+    fritextposter,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
@@ -373,6 +384,7 @@ export async function createProject(formData: FormData) {
     antal_maskiner: antalMaskiner,
     antal_lastbilar: antalLastbilar,
     schaktslede_hyresdagar: hyresdagarSchaktslede,
+    fritextposter,
     coef_overrides: coefOverrides,
     schaktdjup,
     schaktbredd,
@@ -425,6 +437,7 @@ export async function updateProject(id: string, formData: FormData) {
     antalLastbilar,
     hyresdagarSchaktslede,
     poster,
+    fritextposter,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
@@ -447,6 +460,7 @@ export async function updateProject(id: string, formData: FormData) {
     antalMaskiner,
     antalLastbilar,
     hyresdagarSchaktslede,
+    fritextposter,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
@@ -468,6 +482,7 @@ export async function updateProject(id: string, formData: FormData) {
       antal_maskiner: antalMaskiner,
       antal_lastbilar: antalLastbilar,
       schaktslede_hyresdagar: hyresdagarSchaktslede,
+      fritextposter,
       coef_overrides: coefOverrides,
       schaktdjup,
       schaktbredd,

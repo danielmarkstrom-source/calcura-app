@@ -128,6 +128,13 @@ export interface Post {
   delarSchakt?: boolean;
 }
 
+// En fri, egen kostnadspost (namn + belopp) utöver de fördefinierade kategorierna.
+export interface FritextPost {
+  id: string;
+  namn: string;
+  belopp: number;
+}
+
 export interface ProjectInput {
   poster: Post[];
   arstid: string;
@@ -145,6 +152,7 @@ export interface ProjectInput {
   // Hyrestid för schaktsläde (dagar) - satt fritt per projekt, frikopplad från den
   // beräknade schakttiden (kan behövas längre eller kortare än själva grävningen).
   hyresdagarSchaktslede?: number;
+  fritextposter?: FritextPost[];
   coefOverrides?: CoefOverrides;
   // Känd faktisk kostnad, används istället för schablonen när den är ifylld (t.ex. en
   // offert/faktura för tjänster eller en förhandlad intrångsersättning). null/odefinierat
@@ -365,8 +373,10 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   const schaktsledeKostnad = (p.hyresdagarSchaktslede || 0) * coef.krSchaktslede;
   const servisDagar = (p.servis || 0) * coef.dagServis;
   const brunnDagar = (p.brunnar || 0) * coef.dagBrunn;
+  const fritextposter = Array.isArray(p.fritextposter) ? p.fritextposter : [];
+  const fritextTotal = fritextposter.reduce((a, f) => a + (f.belopp || 0), 0);
 
-  const total = ledningKostnad + servisKostnad + brunnKostnad + schaktsledeKostnad + intrangKostnad + besiktningKostnad;
+  const total = ledningKostnad + servisKostnad + brunnKostnad + schaktsledeKostnad + intrangKostnad + besiktningKostnad + fritextTotal;
   const co2 = ledningCO2 + (p.servis || 0) * 180;
   // Besiktning utförs av extern part och påverkar inte den egna schakttiden.
   const dagar = ledningDagar + servisDagar + brunnDagar;
@@ -399,6 +409,8 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     { key: "intrang", label: "Fastighetsintrång" + (p.intrangManuell != null ? " (känd kostnad)" : ""), value: intrangKostnad },
     { key: "besiktning", label: "Besiktning", value: besiktningKostnad },
     { key: "schaktslede", label: "Schaktsläde", value: schaktsledeKostnad },
+    // Fria, egna kostnadsposter - en rad per post, helt statiska (manuellt inskrivna belopp).
+    ...fritextposter.map((f) => ({ key: `fritext-${f.id}`, label: f.namn || "Övrig kostnad", value: f.belopp || 0 })),
   ];
 
   return {
