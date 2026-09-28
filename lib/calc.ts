@@ -44,10 +44,12 @@ export const KATEGORIER = [
 
 export interface CategoryRates {
   arbetstid: number;
-  maskinkostnad: number;
+  gravmaskin: number;
+  hjullastare: number;
+  lastbil: number;
+  maskinhyra: number; // kr/st schablon - inte tidsdriven, se Maskinpark
   anlaggningsmaterial: number;
   tjanster: number;
-  lastbil: number;
 }
 
 export interface Coef {
@@ -69,6 +71,12 @@ export interface Coef {
   krBesiktning: number;
   krBrunn: number;
   krSchaktslede: number;
+  // Etablering/TA räknas som kr/vecka x en uppskattad projekttid. Omgivningspåverkan
+  // använder samma modell bara för att räkna fram ett FÖRESLAGET värde - varierar för
+  // mycket mellan projekt för att låsas till en formel, se ProjectInput.omgivningspaverkanManuell.
+  krEtableringPerVecka: number;
+  krTAPerVecka: number;
+  krOmgivningspaverkanPerVecka: number;
   dagServis: number;
   dagBrunn: number;
   extraPipeDagarFaktor: number;
@@ -84,7 +92,7 @@ export type CoefOverrides = { [K in keyof Coef]?: Coef[K] extends object ? Parti
 
 export const DEFAULT_COEF: Coef = {
   refDim: Object.fromEntries(LEDNINGSSLAG.map((s) => [s.id, s.refDim])),
-  categoryRates: { arbetstid: 550, maskinkostnad: 800, anlaggningsmaterial: 250, tjanster: 400, lastbil: 800 },
+  categoryRates: { arbetstid: 550, gravmaskin: 800, hjullastare: 900, lastbil: 800, maskinhyra: 100000, anlaggningsmaterial: 250, tjanster: 400 },
   timmarPerArbetsdag: 8,
   rateUnitVersion: 2,
   dagstaktMark: { gatumark: 6, skogsmark: 15, jordbruksmark: 20 },
@@ -97,6 +105,12 @@ export const DEFAULT_COEF: Coef = {
   krBesiktning: 3000,
   krBrunn: 45000, // bara arbetsinsatsen att sätta brunnen - materialet hanteras som styckvara i ledningssträckorna
   krSchaktslede: 3400, // ca 75 000 kr/månad omräknat till kr/dag (22 arbetsdagar/månad)
+  // Schablonerna nedan är grovt räknade från en verklig debiteringshistorik (273 m,
+  // ~20,5 veckors projekttid): Container/vagn/redskap 87 000 kr, TA 245 500 kr,
+  // Omgivningspåverkan 111 000 kr, avrundat per vecka.
+  krEtableringPerVecka: 4250,
+  krTAPerVecka: 12000,
+  krOmgivningspaverkanPerVecka: 5400,
   dagServis: 1, // 1 dag per servisanslutning - påverkar bara tidsåtgången (dagar), inte kostnaden (krServis är redan en fast styckkostnad, se calcProject)
   dagBrunn: 1,
   extraPipeDagarFaktor: 0.15,
@@ -129,10 +143,28 @@ export interface Post {
 }
 
 // En fri, egen kostnadspost (namn + belopp) utöver de fördefinierade kategorierna.
+// Används både för generella fritextposter och för Driftkostnader (samma form, olika lista).
 export interface FritextPost {
   id: string;
   namn: string;
   belopp: number;
+}
+
+export const MASKINTYPER = [
+  { id: "gravmaskin", label: "Grävmaskin" },
+  { id: "hjullastare", label: "Hjullastare" },
+  { id: "lastbil", label: "Lastbil" },
+  { id: "maskinhyra", label: "Maskinhyra (schablon)" },
+] as const;
+
+// En rad i Maskinpark. `antal` betyder "antal maskiner av den här typen" för de
+// tidsdrivna typerna (gravmaskin/hjullastare/lastbil - kostar schakttimmar x antal x
+// kr/tim), och "antal hyrestillfällen" för maskinhyra (kostar antal x en kr/st-schablon,
+// inte kopplat till schakttiden - se calcProject).
+export interface MaskinPost {
+  id: string;
+  typ: (typeof MASKINTYPER)[number]["id"];
+  antal: number;
 }
 
 export interface ProjectInput {
@@ -147,12 +179,24 @@ export interface ProjectInput {
   slantH?: number;
   slantV?: number;
   antalPersoner?: number;
-  antalMaskiner?: number;
-  antalLastbilar?: number;
+  // Maskinpark ersätter de gamla enkla antalMaskiner/antalLastbilar-fälten - en
+  // utrullningsbar lista där varje rad har en typ (grävmaskin/hjullastare/lastbil/
+  // maskinhyra) och ett antal, se MaskinPost.
+  maskinpark?: MaskinPost[];
   // Hyrestid för schaktsläde (dagar) - satt fritt per projekt, frikopplad från den
   // beräknade schakttiden (kan behövas längre eller kortare än själva grävningen).
   hyresdagarSchaktslede?: number;
+  // Uppskattad projekttid (veckor) - driver Etablering och TA (kr/vecka), och används
+  // för att föreslå ett värde för Omgivningspåverkan (se nedan).
+  projekttidVeckor?: number;
+  // Omgivningspåverkan varierar för mycket mellan projekt för att låsas till en formel -
+  // manuellt inskrivet värde. null/odefinierat = använd det föreslagna värdet
+  // (krOmgivningspaverkanPerVecka x projekttidVeckor).
+  omgivningspaverkanManuell?: number | null;
   fritextposter?: FritextPost[];
+  // Driftkostnader (städning, förbrukningsartiklar, elförbrukning m.m.) - samma form
+  // som fritextposter men en egen, namngiven kategori i visningen.
+  driftposter?: FritextPost[];
   coefOverrides?: CoefOverrides;
   // Känd faktisk kostnad, används istället för schablonen när den är ifylld (t.ex. en
   // offert/faktura för tjänster eller en förhandlad intrångsersättning). null/odefinierat
@@ -249,7 +293,6 @@ export interface CalcResult {
   schakttimmar: number;
   arbetstimmar: number;
   antalPersoner: number;
-  antalMaskiner: number;
   ledningDagar: number;
   tidsdrivenTotal: number;
   calibration?: { factor: number; n: number };
@@ -342,18 +385,28 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   // Tidsbaserade kategorikostnader: schakttiden (dagar ur förläggningstakten) -> timmar.
   const tph = coef.timmarPerArbetsdag || 8;
   const antalPersoner = p.antalPersoner ?? 3;
-  const antalMaskiner = p.antalMaskiner ?? 1;
-  const antalLastbilar = p.antalLastbilar ?? 0;
   const schakttimmar = ledningDagar * tph;
   const arbetstimmar = schakttimmar * antalPersoner;
   // Marktyp påverkar inte längre kostnaden direkt - effekten kommer redan in via
   // schakttimmar (dagar per post räknas ut från dagstaktMark ovan). Snabbare mark
   // ger färre timmar och därmed automatiskt lägre arbetstids-/maskin-/tjänstekostnad.
   const arbetstidTotal = schakttimmar * antalPersoner * (coef.categoryRates.arbetstid || 0);
-  // Lastbil räknas som en maskin bland andra - schakttimmar x antal x kr/tim, inte
-  // kopplat till massvolymerna (fallATransporter/fallBTransporter är bara referens).
-  const maskinTotal =
-    schakttimmar * antalMaskiner * (coef.categoryRates.maskinkostnad || 0) + schakttimmar * antalLastbilar * (coef.categoryRates.lastbil || 0);
+  // Maskinpark: grävmaskin/hjullastare/lastbil är tidsdrivna (schakttimmar x antal x
+  // kr/tim, inte kopplat till massvolymerna - fallATransporter/fallBTransporter är bara
+  // referens). Maskinhyra är en ren schablon (antal x kr/st), inte tidsdriven - kan på
+  // sikt bli en variabel styrd av verklig historik (Historik-fliken, ej byggd än).
+  const maskinpark = Array.isArray(p.maskinpark) ? p.maskinpark : [];
+  const antalAvTyp = (typ: string) => maskinpark.filter((m) => m.typ === typ).reduce((a, m) => a + (m.antal || 0), 0);
+  const antalGravmaskin = antalAvTyp("gravmaskin");
+  const antalHjullastare = antalAvTyp("hjullastare");
+  const antalLastbilar = antalAvTyp("lastbil");
+  const antalMaskinhyra = antalAvTyp("maskinhyra");
+  const maskinTidsdrivet =
+    schakttimmar * antalGravmaskin * (coef.categoryRates.gravmaskin || 0) +
+    schakttimmar * antalHjullastare * (coef.categoryRates.hjullastare || 0) +
+    schakttimmar * antalLastbilar * (coef.categoryRates.lastbil || 0);
+  const maskinhyraKostnad = antalMaskinhyra * (coef.categoryRates.maskinhyra || 0);
+  const maskinTotal = maskinTidsdrivet + maskinhyraKostnad;
   // Om en känd faktisk kostnad är ifylld (t.ex. en offert) används den istället för
   // schablonen - och räknas då inte längre som tidsdriven (se `variable` på parts nedan).
   const tjansterArKanda = p.tjansterManuell != null;
@@ -361,6 +414,19 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   const anlaggningsTotal = massor.anlaggningsmaterialBehov * (coef.categoryRates.anlaggningsmaterial || 0);
   const ovrigtTotal = arbetstidTotal + maskinTotal + anlaggningsTotal + tjansterTotal;
   const ledningKostnad = materialTotal + ovrigtTotal;
+
+  // Etablering och TA drivs av en uppskattad projekttid (veckor), frikopplad från
+  // schakttiden - precis som schaktsläde. Omgivningspåverkan använder samma modell bara
+  // för att föreslå ett värde; det faktiska beloppet skrivs in manuellt eftersom det
+  // varierar för mycket mellan projekt för att låsas till en formel.
+  const projekttidVeckor = p.projekttidVeckor || 0;
+  const etableringKostnad = projekttidVeckor * coef.krEtableringPerVecka;
+  const taKostnad = projekttidVeckor * coef.krTAPerVecka;
+  const omgivningspaverkanForeslaget = projekttidVeckor * coef.krOmgivningspaverkanPerVecka;
+  const omgivningspaverkanArKanda = p.omgivningspaverkanManuell != null;
+  const omgivningspaverkanKostnad = omgivningspaverkanArKanda ? (p.omgivningspaverkanManuell as number) : omgivningspaverkanForeslaget;
+  const driftposter = Array.isArray(p.driftposter) ? p.driftposter : [];
+  const driftTotal = driftposter.reduce((a, f) => a + (f.belopp || 0), 0);
 
   const servisKostnad = (p.servis || 0) * coef.krServis * arstidFaktor;
   const intrangKostnad = p.intrangManuell != null ? p.intrangManuell : (p.intrang || 0) * coef.krIntrang; // ren schablonkostnad, ingen årstidspåverkan
@@ -376,7 +442,18 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   const fritextposter = Array.isArray(p.fritextposter) ? p.fritextposter : [];
   const fritextTotal = fritextposter.reduce((a, f) => a + (f.belopp || 0), 0);
 
-  const total = ledningKostnad + servisKostnad + brunnKostnad + schaktsledeKostnad + intrangKostnad + besiktningKostnad + fritextTotal;
+  const total =
+    ledningKostnad +
+    servisKostnad +
+    brunnKostnad +
+    schaktsledeKostnad +
+    intrangKostnad +
+    besiktningKostnad +
+    fritextTotal +
+    etableringKostnad +
+    taKostnad +
+    omgivningspaverkanKostnad +
+    driftTotal;
   const co2 = ledningCO2 + (p.servis || 0) * 180;
   // Besiktning utförs av extern part och påverkar inte den egna schakttiden.
   const dagar = ledningDagar + servisDagar + brunnDagar;
@@ -399,7 +476,12 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     { key: "material", label: hasStyckItems ? "Material (meter- och styckvaror)" : `Material (snitt ${formatKr(materialKrPerM)}/m)`, value: materialTotal },
     { key: "arbetstid", label: "Arbetstid", value: arbetstidTotal, variable: arbetstidTotal },
     { key: "anlaggningsmaterial", label: "Anläggningsmaterial", value: anlaggningsTotal },
-    { key: "maskinkostnad", label: "Maskinkostnader" + (antalLastbilar > 0 ? " (inkl. lastbil)" : ""), value: maskinTotal, variable: maskinTotal },
+    {
+      key: "maskinpark",
+      label: "Maskinpark" + (antalMaskinhyra > 0 ? " (inkl. maskinhyra)" : ""),
+      value: maskinTotal,
+      variable: maskinTidsdrivet,
+    },
     {
       key: "schaktkostnad",
       label: "Schaktkostnad" + (tjansterArKanda ? " (tjänster: känd kostnad)" : ""),
@@ -409,8 +491,12 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     { key: "intrang", label: "Fastighetsintrång" + (p.intrangManuell != null ? " (känd kostnad)" : ""), value: intrangKostnad },
     { key: "besiktning", label: "Besiktning", value: besiktningKostnad },
     { key: "schaktslede", label: "Schaktsläde", value: schaktsledeKostnad },
+    { key: "etablering", label: "Etablering", value: etableringKostnad },
+    { key: "ta", label: "TA", value: taKostnad },
+    { key: "omgivningspaverkan", label: "Omgivningspåverkan" + (omgivningspaverkanArKanda ? "" : " (föreslaget värde)"), value: omgivningspaverkanKostnad },
     // Fria, egna kostnadsposter - en rad per post, helt statiska (manuellt inskrivna belopp).
     ...fritextposter.map((f) => ({ key: `fritext-${f.id}`, label: f.namn || "Övrig kostnad", value: f.belopp || 0 })),
+    ...driftposter.map((f) => ({ key: `drift-${f.id}`, label: `Driftkostnad: ${f.namn || "Övrigt"}`, value: f.belopp || 0 })),
   ];
 
   return {
@@ -428,7 +514,6 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     schakttimmar,
     arbetstimmar,
     antalPersoner,
-    antalMaskiner,
     ledningDagar,
     // Summan av parts' `variable`-fält - så en ifylld känd kostnad (som inte längre är
     // tidsdriven) automatiskt utesluts, utan att dubbla den logiken här.
@@ -470,10 +555,12 @@ export function getCoefByPath(obj: unknown, path: string): unknown {
 // årstid som gäller (fältet `arstid`), själva faktorn bakom varje årstid styrs centralt.
 export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit: string; step?: string; perProject?: boolean }[] = [
   { group: "Kategorikostnader", path: "categoryRates.arbetstid", label: "Arbetstid", unit: "kr/tim" },
-  { group: "Kategorikostnader", path: "categoryRates.maskinkostnad", label: "Maskinkostnad", unit: "kr/tim" },
   { group: "Kategorikostnader", path: "categoryRates.tjanster", label: "Tjänster", unit: "kr/tim" },
-  { group: "Kategorikostnader", path: "categoryRates.lastbil", label: "Lastbil", unit: "kr/tim" },
   { group: "Kategorikostnader", path: "categoryRates.anlaggningsmaterial", label: "Anläggningsmaterial", unit: "kr/m³" },
+  { group: "Maskinpark", path: "categoryRates.gravmaskin", label: "Grävmaskin", unit: "kr/tim" },
+  { group: "Maskinpark", path: "categoryRates.hjullastare", label: "Hjullastare", unit: "kr/tim" },
+  { group: "Maskinpark", path: "categoryRates.lastbil", label: "Lastbil", unit: "kr/tim" },
+  { group: "Maskinpark", path: "categoryRates.maskinhyra", label: "Maskinhyra (schablon)", unit: "kr/st" },
   { group: "Tidsantaganden", path: "timmarPerArbetsdag", label: "Timmar per arbetsdag", unit: "tim" },
   { group: "Tidsantaganden", path: "extraPipeDagarFaktor", label: "Extra tid per parallell ledning", unit: "×", step: "0.05" },
   { group: "Förläggningstakt", path: "dagstaktMark.gatumark", label: "Gatumark", unit: "m/dag" },
@@ -491,6 +578,9 @@ export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit
   { group: "Övriga kostnader", path: "krBesiktning", label: "Per besiktning", unit: "kr/st" },
   { group: "Övriga kostnader", path: "krBrunn", label: "Per brunn (arbetsinsats)", unit: "kr/st" },
   { group: "Övriga kostnader", path: "krSchaktslede", label: "Schaktsläde (hyra)", unit: "kr/dag" },
+  { group: "Övriga kostnader", path: "krEtableringPerVecka", label: "Etablering", unit: "kr/vecka" },
+  { group: "Övriga kostnader", path: "krTAPerVecka", label: "TA (trafikanordning)", unit: "kr/vecka" },
+  { group: "Övriga kostnader", path: "krOmgivningspaverkanPerVecka", label: "Omgivningspåverkan (föreslaget)", unit: "kr/vecka" },
   { group: "Övriga kostnader", path: "dagServis", label: "Dagar per servisanslutning", unit: "dag/st", step: "0.1" },
   { group: "Övriga kostnader", path: "dagBrunn", label: "Dagar per brunn", unit: "dag/st", step: "0.1" },
   { group: "Övriga kostnader", path: "osakerhet", label: "Osäkerhetsspann", unit: "%" },

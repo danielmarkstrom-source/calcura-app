@@ -3,7 +3,20 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { calcProjectDisplay, deepMergeCoef, effCoef, DEFAULT_COEF, OVERRIDE_FIELDS, type Coef, type CoefOverrides, type FritextPost, type MaterialRow, type Post } from "@/lib/calc";
+import {
+  calcProjectDisplay,
+  deepMergeCoef,
+  effCoef,
+  DEFAULT_COEF,
+  MASKINTYPER,
+  OVERRIDE_FIELDS,
+  type Coef,
+  type CoefOverrides,
+  type FritextPost,
+  type MaskinPost,
+  type MaterialRow,
+  type Post,
+} from "@/lib/calc";
 
 export type ActionState = { error?: string; success?: boolean } | undefined;
 
@@ -229,6 +242,15 @@ async function getOrgCalcContext(supabase: Awaited<ReturnType<typeof createClien
   return { coef, materialDB, projectsForCalibration };
 }
 
+/** Tolkar en fri namn+belopp-lista (fritextposter/driftposter - samma form, olika fält). */
+function parseFritextList(formData: FormData, field: string): FritextPost[] {
+  const parsed = JSON.parse(String(formData.get(field) || "[]"));
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter((f) => f && String(f.namn || "").trim())
+    .map((f, i) => ({ id: String(f.id || `${field}${i}`), namn: String(f.namn).trim(), belopp: Number(f.belopp) || 0 }));
+}
+
 /** Tolkar ProjectForm:ens fält - delad av createProject och updateProject. */
 function parseProjectForm(formData: FormData) {
   const namn = String(formData.get("namn") || "").trim() || "Namnlöst projekt";
@@ -242,15 +264,17 @@ function parseProjectForm(formData: FormData) {
   const slantH = Number(formData.get("slantH") || 1);
   const slantV = Number(formData.get("slantV") || 1);
   const antalPersoner = Number(formData.get("antalPersoner") || 3);
-  const antalMaskiner = Number(formData.get("antalMaskiner") || 1);
-  const antalLastbilar = Number(formData.get("antalLastbilar") || 0);
   const hyresdagarSchaktslede = Number(formData.get("hyresdagarSchaktslede") || 0);
+  const projekttidVeckor = Number(formData.get("projekttidVeckor") || 0);
 
   // Känd faktisk kostnad (valfri) - tomt fält = null = använd schablonen som vanligt.
   const tjansterManuellRaw = formData.get("tjansterManuell");
   const tjansterManuell = tjansterManuellRaw === null || tjansterManuellRaw === "" ? null : Number(tjansterManuellRaw);
   const intrangManuellRaw = formData.get("intrangManuell");
   const intrangManuell = intrangManuellRaw === null || intrangManuellRaw === "" ? null : Number(intrangManuellRaw);
+  const omgivningspaverkanManuellRaw = formData.get("omgivningspaverkanManuell");
+  const omgivningspaverkanManuell =
+    omgivningspaverkanManuellRaw === null || omgivningspaverkanManuellRaw === "" ? null : Number(omgivningspaverkanManuellRaw);
 
   let poster: Post[] = [];
   const parsed = JSON.parse(String(formData.get("posterJson") || "[]"));
@@ -277,12 +301,16 @@ function parseProjectForm(formData: FormData) {
     coefOverrides = {};
   }
 
-  let fritextposter: FritextPost[] = [];
-  const parsedFritext = JSON.parse(String(formData.get("fritextposterJson") || "[]"));
-  if (Array.isArray(parsedFritext)) {
-    fritextposter = parsedFritext
-      .filter((f) => f && String(f.namn || "").trim())
-      .map((f, i) => ({ id: String(f.id || `f${i}`), namn: String(f.namn).trim(), belopp: Number(f.belopp) || 0 }));
+  const fritextposter = parseFritextList(formData, "fritextposterJson");
+  const driftposter = parseFritextList(formData, "driftposterJson");
+
+  let maskinpark: MaskinPost[] = [];
+  const parsedMaskinpark = JSON.parse(String(formData.get("maskinparkJson") || "[]"));
+  if (Array.isArray(parsedMaskinpark)) {
+    const giltigaTyper = MASKINTYPER.map((t) => t.id) as string[];
+    maskinpark = parsedMaskinpark
+      .filter((m) => m && giltigaTyper.includes(m.typ) && Number(m.antal) > 0)
+      .map((m, i) => ({ id: String(m.id || `m${i}`), typ: m.typ as MaskinPost["typ"], antal: Number(m.antal) }));
   }
 
   return {
@@ -297,14 +325,16 @@ function parseProjectForm(formData: FormData) {
     slantH,
     slantV,
     antalPersoner,
-    antalMaskiner,
-    antalLastbilar,
+    maskinpark,
     hyresdagarSchaktslede,
+    projekttidVeckor,
     poster,
     fritextposter,
+    driftposter,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
+    omgivningspaverkanManuell,
   };
 }
 
@@ -335,14 +365,16 @@ export async function createProject(formData: FormData) {
     slantH,
     slantV,
     antalPersoner,
-    antalMaskiner,
-    antalLastbilar,
+    maskinpark,
     hyresdagarSchaktslede,
+    projekttidVeckor,
     poster,
     fritextposter,
+    driftposter,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
+    omgivningspaverkanManuell,
   } = fields;
 
   const { coef, materialDB, projectsForCalibration } = await getOrgCalcContext(supabase, orgId);
@@ -359,13 +391,15 @@ export async function createProject(formData: FormData) {
     slantH,
     slantV,
     antalPersoner,
-    antalMaskiner,
-    antalLastbilar,
+    maskinpark,
     hyresdagarSchaktslede,
+    projekttidVeckor,
     fritextposter,
+    driftposter,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
+    omgivningspaverkanManuell,
   };
 
   const calc = calcProjectDisplay(projectInput, effCoef(coef, { coefOverrides }), materialDB, projectsForCalibration);
@@ -381,10 +415,11 @@ export async function createProject(formData: FormData) {
     besiktning,
     antal_brunnar: brunnar,
     antal_personer: antalPersoner,
-    antal_maskiner: antalMaskiner,
-    antal_lastbilar: antalLastbilar,
+    maskinpark,
     schaktslede_hyresdagar: hyresdagarSchaktslede,
+    projekttid_veckor: projekttidVeckor,
     fritextposter,
+    driftposter,
     coef_overrides: coefOverrides,
     schaktdjup,
     schaktbredd,
@@ -392,6 +427,7 @@ export async function createProject(formData: FormData) {
     slant_v: slantV,
     tjanster_manuell: tjansterManuell,
     intrang_manuell: intrangManuell,
+    omgivningspaverkan_manuell: omgivningspaverkanManuell,
     prognos_total: calc.total,
     prognos_snapshot: calc,
     framdrift: [],
@@ -433,14 +469,16 @@ export async function updateProject(id: string, formData: FormData) {
     slantH,
     slantV,
     antalPersoner,
-    antalMaskiner,
-    antalLastbilar,
+    maskinpark,
     hyresdagarSchaktslede,
+    projekttidVeckor,
     poster,
     fritextposter,
+    driftposter,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
+    omgivningspaverkanManuell,
   } = fields;
 
   const { coef, materialDB, projectsForCalibration } = await getOrgCalcContext(supabase, orgId);
@@ -457,13 +495,15 @@ export async function updateProject(id: string, formData: FormData) {
     slantH,
     slantV,
     antalPersoner,
-    antalMaskiner,
-    antalLastbilar,
+    maskinpark,
     hyresdagarSchaktslede,
+    projekttidVeckor,
     fritextposter,
+    driftposter,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
+    omgivningspaverkanManuell,
   };
 
   const calc = calcProjectDisplay(projectInput, effCoef(coef, { coefOverrides }), materialDB, projectsForCalibration);
@@ -479,10 +519,11 @@ export async function updateProject(id: string, formData: FormData) {
       besiktning,
       antal_brunnar: brunnar,
       antal_personer: antalPersoner,
-      antal_maskiner: antalMaskiner,
-      antal_lastbilar: antalLastbilar,
+      maskinpark,
       schaktslede_hyresdagar: hyresdagarSchaktslede,
+      projekttid_veckor: projekttidVeckor,
       fritextposter,
+      driftposter,
       coef_overrides: coefOverrides,
       schaktdjup,
       schaktbredd,
@@ -490,6 +531,7 @@ export async function updateProject(id: string, formData: FormData) {
       slant_v: slantV,
       tjanster_manuell: tjansterManuell,
       intrang_manuell: intrangManuell,
+      omgivningspaverkan_manuell: omgivningspaverkanManuell,
       prognos_total: calc.total,
       prognos_snapshot: calc,
     })

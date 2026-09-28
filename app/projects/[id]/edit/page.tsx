@@ -81,14 +81,16 @@ export default async function EditProjectPage({ params }: PageProps<"/projects/[
               slantH: project.slant_h,
               slantV: project.slant_v,
               antalPersoner: project.antal_personer,
-              antalMaskiner: project.antal_maskiner,
-              antalLastbilar: project.antal_lastbilar,
+              maskinpark: project.maskinpark || [],
               hyresdagarSchaktslede: project.schaktslede_hyresdagar,
+              projekttidVeckor: project.projekttid_veckor,
               poster: project.poster || [],
               fritextposter: project.fritextposter || [],
+              driftposter: project.driftposter || [],
               coefOverrides: project.coef_overrides || {},
               tjansterManuell: project.tjanster_manuell,
               intrangManuell: project.intrang_manuell,
+              omgivningspaverkanManuell: project.omgivningspaverkan_manuell,
             }}
           />
         </div>

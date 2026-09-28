@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   ARSTID,
   MARKTYP,
+  MASKINTYPER,
   OVERRIDE_FIELDS,
   calcProjectDisplay,
   effCoef,
@@ -15,6 +16,7 @@ import {
   type Coef,
   type CoefOverrides,
   type FritextPost,
+  type MaskinPost,
   type MaterialRow,
   type Post,
 } from "@/lib/calc";
@@ -37,14 +39,16 @@ export interface ExistingProject {
   slantH: number;
   slantV: number;
   antalPersoner: number;
-  antalMaskiner: number;
-  antalLastbilar: number;
+  maskinpark: MaskinPost[];
   hyresdagarSchaktslede: number;
+  projekttidVeckor: number;
   poster: Post[];
   fritextposter: FritextPost[];
+  driftposter: FritextPost[];
   coefOverrides: CoefOverrides;
   tjansterManuell?: number | null;
   intrangManuell?: number | null;
+  omgivningspaverkanManuell?: number | null;
 }
 
 export default function ProjectForm({
@@ -69,16 +73,20 @@ export default function ProjectForm({
   const [slantH, setSlantH] = useState(project?.slantH ?? 1);
   const [slantV, setSlantV] = useState(project?.slantV ?? 1);
   const [antalPersoner, setAntalPersoner] = useState(project?.antalPersoner ?? 3);
-  const [antalMaskiner, setAntalMaskiner] = useState(project?.antalMaskiner ?? 1);
-  const [antalLastbilar, setAntalLastbilar] = useState(project?.antalLastbilar ?? 0);
+  const [maskinpark, setMaskinpark] = useState<MaskinPost[]>(project?.maskinpark ?? []);
   const [hyresdagarSchaktslede, setHyresdagarSchaktslede] = useState(project?.hyresdagarSchaktslede ?? 0);
+  const [projekttidVeckor, setProjekttidVeckor] = useState(project?.projekttidVeckor ?? 0);
   const [poster, setPoster] = useState<Post[]>(project?.poster ?? []);
   const [fritextposter, setFritextposter] = useState<FritextPost[]>(project?.fritextposter ?? []);
+  const [driftposter, setDriftposter] = useState<FritextPost[]>(project?.driftposter ?? []);
   const [coefOverrides, setCoefOverrides] = useState<CoefOverrides>(project?.coefOverrides ?? {});
   // Känd faktisk kostnad (t.ex. en offert) - textfält som strängar så fältet kan vara
   // tomt (= använd schablonen). Tomt/ogiltigt tolkas som null vid beräkning och spara.
   const [tjansterManuell, setTjansterManuell] = useState(project?.tjansterManuell != null ? String(project.tjansterManuell) : "");
   const [intrangManuell, setIntrangManuell] = useState(project?.intrangManuell != null ? String(project.intrangManuell) : "");
+  const [omgivningspaverkanManuell, setOmgivningspaverkanManuell] = useState(
+    project?.omgivningspaverkanManuell != null ? String(project.omgivningspaverkanManuell) : ""
+  );
   const [advOpen, setAdvOpen] = useState(false);
   const formAction = project ? updateProject.bind(null, project.id) : createProject;
 
@@ -118,6 +126,26 @@ export default function ProjectForm({
   }
   function removeFritextpost(id: string) {
     setFritextposter((rows) => rows.filter((r) => r.id !== id));
+  }
+
+  function addDriftpost() {
+    setDriftposter((f) => [...f, { id: uid(), namn: "", belopp: 0 }]);
+  }
+  function updateDriftpost(id: string, patch: Partial<FritextPost>) {
+    setDriftposter((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+  function removeDriftpost(id: string) {
+    setDriftposter((rows) => rows.filter((r) => r.id !== id));
+  }
+
+  function addMaskinpost() {
+    setMaskinpark((m) => [...m, { id: uid(), typ: MASKINTYPER[0].id, antal: 1 }]);
+  }
+  function updateMaskinpost(id: string, patch: Partial<MaskinPost>) {
+    setMaskinpark((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+  function removeMaskinpost(id: string) {
+    setMaskinpark((rows) => rows.filter((r) => r.id !== id));
   }
 
   const slags = useMemo(() => Array.from(new Set(materialDB.map((r) => r.slag))), [materialDB]);
@@ -170,6 +198,7 @@ export default function ProjectForm({
 
   const tjansterManuellNum = tjansterManuell === "" ? null : Number(tjansterManuell);
   const intrangManuellNum = intrangManuell === "" ? null : Number(intrangManuell);
+  const omgivningspaverkanManuellNum = omgivningspaverkanManuell === "" ? null : Number(omgivningspaverkanManuell);
   const projectInput = useMemo(
     () => ({
       poster,
@@ -183,13 +212,15 @@ export default function ProjectForm({
       slantH,
       slantV,
       antalPersoner,
-      antalMaskiner,
-      antalLastbilar,
+      maskinpark,
       hyresdagarSchaktslede,
+      projekttidVeckor,
       fritextposter,
+      driftposter,
       coefOverrides,
       tjansterManuell: tjansterManuellNum,
       intrangManuell: intrangManuellNum,
+      omgivningspaverkanManuell: omgivningspaverkanManuellNum,
     }),
     [
       poster,
@@ -203,13 +234,15 @@ export default function ProjectForm({
       slantH,
       slantV,
       antalPersoner,
-      antalMaskiner,
-      antalLastbilar,
+      maskinpark,
       hyresdagarSchaktslede,
+      projekttidVeckor,
       fritextposter,
+      driftposter,
       coefOverrides,
       tjansterManuellNum,
       intrangManuellNum,
+      omgivningspaverkanManuellNum,
     ]
   );
   const effectiveCoef = useMemo(() => effCoef(coef, { coefOverrides }), [coef, coefOverrides]);
@@ -231,6 +264,8 @@ export default function ProjectForm({
       <input type="hidden" name="posterJson" value={JSON.stringify(poster)} />
       <input type="hidden" name="coefOverridesJson" value={JSON.stringify(coefOverrides)} />
       <input type="hidden" name="fritextposterJson" value={JSON.stringify(fritextposter)} />
+      <input type="hidden" name="driftposterJson" value={JSON.stringify(driftposter)} />
+      <input type="hidden" name="maskinparkJson" value={JSON.stringify(maskinpark)} />
 
       <div>
         <label className="block text-sm font-medium text-slate-700">Projektnamn</label>
@@ -390,7 +425,7 @@ export default function ProjectForm({
           Fyll i när den faktiska kostnaden är känd (t.ex. en offert) - används då istället för
           schablonen. Lämna tomt för att räkna som vanligt.
         </p>
-        <div className="mt-2 grid grid-cols-2 gap-3">
+        <div className="mt-2 grid grid-cols-3 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-600">Tjänster (kr)</label>
             <input
@@ -413,10 +448,25 @@ export default function ProjectForm({
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Omgivningspåverkan (kr)</label>
+            <input
+              type="number"
+              name="omgivningspaverkanManuell"
+              value={omgivningspaverkanManuell}
+              onChange={(e) => setOmgivningspaverkanManuell(e.target.value)}
+              placeholder={String(Math.round(projekttidVeckor * coef.krOmgivningspaverkanPerVecka))}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <p className="mt-0.5 text-[10px] text-slate-400">
+              Föreslaget värde ({formatKr(projekttidVeckor * coef.krOmgivningspaverkanPerVecka)}) baseras på
+              projekttiden - varierar ofta mycket, ändra vid behov.
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="block text-xs font-medium text-slate-600">Årstid</label>
           <select name="arstid" value={arstid} onChange={(e) => setArstid(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
@@ -427,20 +477,54 @@ export default function ProjectForm({
             ))}
           </select>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <label className="block text-xs font-medium text-slate-600">Antal i laget</label>
-            <input type="number" name="antalPersoner" value={antalPersoner} onChange={(e) => setAntalPersoner(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600">Antal maskiner</label>
-            <input type="number" name="antalMaskiner" value={antalMaskiner} onChange={(e) => setAntalMaskiner(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600">Antal lastbilar</label>
-            <input type="number" name="antalLastbilar" value={antalLastbilar} onChange={(e) => setAntalLastbilar(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600">Antal i laget</label>
+          <input type="number" name="antalPersoner" value={antalPersoner} onChange={(e) => setAntalPersoner(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600">Beräknad projekttid (veckor)</label>
+          <input type="number" name="projekttidVeckor" value={projekttidVeckor} onChange={(e) => setProjekttidVeckor(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Maskinpark</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Grävmaskin, hjullastare och lastbil kostar schakttimmar × antal × kr/tim. Maskinhyra är en
+          schablon (kr/st), inte kopplad till schakttiden.
+        </p>
+        {maskinpark.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {maskinpark.map((m) => (
+              <div key={m.id} className="flex items-center gap-2">
+                <select
+                  value={m.typ}
+                  onChange={(e) => updateMaskinpost(m.id, { typ: e.target.value as MaskinPost["typ"] })}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  {MASKINTYPER.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  value={m.antal}
+                  onChange={(e) => updateMaskinpost(m.id, { antal: Number(e.target.value) })}
+                  placeholder="Antal"
+                  className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+                <button type="button" onClick={() => removeMaskinpost(m.id)} className="text-red-500 hover:text-red-700" aria-label="Ta bort maskin">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <button type="button" onClick={addMaskinpost} className="mt-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700">
+          + Lägg till maskin
+        </button>
       </div>
 
       <div>
@@ -490,8 +574,8 @@ export default function ProjectForm({
       <div>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Övriga kostnader (fritext)</h2>
         <p className="mt-1 text-xs text-slate-500">
-          Egna kostnadsposter utöver de fördefinierade kategorierna, t.ex. trafikanordningsplan
-          eller extra konsultarvode. Visas som egna rader i kostnadsuppställningen.
+          Egna kostnadsposter utöver de fördefinierade kategorierna, t.ex. ett engångsarvode.
+          Visas som egna rader i kostnadsuppställningen.
         </p>
         {fritextposter.length > 0 && (
           <div className="mt-2 space-y-2">
@@ -520,6 +604,42 @@ export default function ProjectForm({
         )}
         <button type="button" onClick={addFritextpost} className="mt-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700">
           + Lägg till post
+        </button>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Driftkostnader</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Löpande kostnader som städning, förbrukningsartiklar, elförbrukning, spolning/sugning,
+          inmätning m.m. Egen post per rad, precis som övriga kostnader ovan.
+        </p>
+        {driftposter.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {driftposter.map((f) => (
+              <div key={f.id} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={f.namn}
+                  onChange={(e) => updateDriftpost(f.id, { namn: e.target.value })}
+                  placeholder="Beskrivning"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+                <input
+                  type="number"
+                  value={f.belopp}
+                  onChange={(e) => updateDriftpost(f.id, { belopp: Number(e.target.value) })}
+                  placeholder="kr"
+                  className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+                <button type="button" onClick={() => removeDriftpost(f.id)} className="text-red-500 hover:text-red-700" aria-label="Ta bort post">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <button type="button" onClick={addDriftpost} className="mt-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700">
+          + Lägg till driftpost
         </button>
       </div>
 
