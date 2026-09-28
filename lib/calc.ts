@@ -47,6 +47,7 @@ export interface CategoryRates {
   maskinkostnad: number;
   anlaggningsmaterial: number;
   tjanster: number;
+  lastbil: number;
 }
 
 export interface Coef {
@@ -80,7 +81,7 @@ export type CoefOverrides = { [K in keyof Coef]?: Coef[K] extends object ? Parti
 
 export const DEFAULT_COEF: Coef = {
   refDim: Object.fromEntries(LEDNINGSSLAG.map((s) => [s.id, s.refDim])),
-  categoryRates: { arbetstid: 550, maskinkostnad: 800, anlaggningsmaterial: 250, tjanster: 400 },
+  categoryRates: { arbetstid: 550, maskinkostnad: 800, anlaggningsmaterial: 250, tjanster: 400, lastbil: 800 },
   timmarPerArbetsdag: 8,
   rateUnitVersion: 2,
   dagstaktMark: { gatumark: 6, skogsmark: 15, jordbruksmark: 20 },
@@ -133,6 +134,7 @@ export interface ProjectInput {
   slantV?: number;
   antalPersoner?: number;
   antalMaskiner?: number;
+  antalLastbilar?: number;
   coefOverrides?: CoefOverrides;
   // Känd faktisk kostnad, används istället för schablonen när den är ifylld (t.ex. en
   // offert/faktura för tjänster eller en förhandlad intrångsersättning). null/odefinierat
@@ -323,13 +325,17 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   const tph = coef.timmarPerArbetsdag || 8;
   const antalPersoner = p.antalPersoner ?? 3;
   const antalMaskiner = p.antalMaskiner ?? 1;
+  const antalLastbilar = p.antalLastbilar ?? 0;
   const schakttimmar = ledningDagar * tph;
   const arbetstimmar = schakttimmar * antalPersoner;
   // Marktyp påverkar inte längre kostnaden direkt - effekten kommer redan in via
   // schakttimmar (dagar per post räknas ut från dagstaktMark ovan). Snabbare mark
   // ger färre timmar och därmed automatiskt lägre arbetstids-/maskin-/tjänstekostnad.
   const arbetstidTotal = schakttimmar * antalPersoner * (coef.categoryRates.arbetstid || 0);
-  const maskinTotal = schakttimmar * antalMaskiner * (coef.categoryRates.maskinkostnad || 0);
+  // Lastbil räknas som en maskin bland andra - schakttimmar x antal x kr/tim, inte
+  // kopplat till massvolymerna (fallATransporter/fallBTransporter är bara referens).
+  const maskinTotal =
+    schakttimmar * antalMaskiner * (coef.categoryRates.maskinkostnad || 0) + schakttimmar * antalLastbilar * (coef.categoryRates.lastbil || 0);
   // Om en känd faktisk kostnad är ifylld (t.ex. en offert) används den istället för
   // schablonen - och räknas då inte längre som tidsdriven (se `variable` på parts nedan).
   const tjansterArKanda = p.tjansterManuell != null;
@@ -366,7 +372,7 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     { key: "material", label: hasStyckItems ? "Material (meter- och styckvaror)" : `Material (snitt ${formatKr(materialKrPerM)}/m)`, value: materialTotal },
     { key: "arbetstid", label: "Arbetstid", value: arbetstidTotal, variable: arbetstidTotal },
     { key: "anlaggningsmaterial", label: "Anläggningsmaterial", value: anlaggningsTotal },
-    { key: "maskinkostnad", label: "Maskinkostnader", value: maskinTotal, variable: maskinTotal },
+    { key: "maskinkostnad", label: "Maskinkostnader" + (antalLastbilar > 0 ? " (inkl. lastbil)" : ""), value: maskinTotal, variable: maskinTotal },
     {
       key: "schaktkostnad",
       label: "Schaktkostnad" + (tjansterArKanda ? " (tjänster: känd kostnad)" : ""),
@@ -436,6 +442,7 @@ export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit
   { group: "Kategorikostnader", path: "categoryRates.arbetstid", label: "Arbetstid", unit: "kr/tim" },
   { group: "Kategorikostnader", path: "categoryRates.maskinkostnad", label: "Maskinkostnad", unit: "kr/tim" },
   { group: "Kategorikostnader", path: "categoryRates.tjanster", label: "Tjänster", unit: "kr/tim" },
+  { group: "Kategorikostnader", path: "categoryRates.lastbil", label: "Lastbil", unit: "kr/tim" },
   { group: "Kategorikostnader", path: "categoryRates.anlaggningsmaterial", label: "Anläggningsmaterial", unit: "kr/m³" },
   { group: "Tidsantaganden", path: "timmarPerArbetsdag", label: "Timmar per arbetsdag", unit: "tim" },
   { group: "Tidsantaganden", path: "extraPipeDagarFaktor", label: "Extra tid per parallell ledning", unit: "×", step: "0.05" },

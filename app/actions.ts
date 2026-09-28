@@ -242,6 +242,7 @@ function parseProjectForm(formData: FormData) {
   const slantV = Number(formData.get("slantV") || 1);
   const antalPersoner = Number(formData.get("antalPersoner") || 3);
   const antalMaskiner = Number(formData.get("antalMaskiner") || 1);
+  const antalLastbilar = Number(formData.get("antalLastbilar") || 0);
 
   // Känd faktisk kostnad (valfri) - tomt fält = null = använd schablonen som vanligt.
   const tjansterManuellRaw = formData.get("tjansterManuell");
@@ -286,6 +287,7 @@ function parseProjectForm(formData: FormData) {
     slantV,
     antalPersoner,
     antalMaskiner,
+    antalLastbilar,
     poster,
     coefOverrides,
     tjansterManuell,
@@ -320,6 +322,7 @@ export async function createProject(formData: FormData) {
     slantV,
     antalPersoner,
     antalMaskiner,
+    antalLastbilar,
     poster,
     coefOverrides,
     tjansterManuell,
@@ -340,6 +343,7 @@ export async function createProject(formData: FormData) {
     slantV,
     antalPersoner,
     antalMaskiner,
+    antalLastbilar,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
@@ -358,6 +362,7 @@ export async function createProject(formData: FormData) {
     besiktning,
     antal_personer: antalPersoner,
     antal_maskiner: antalMaskiner,
+    antal_lastbilar: antalLastbilar,
     coef_overrides: coefOverrides,
     schaktdjup,
     schaktbredd,
@@ -406,6 +411,7 @@ export async function updateProject(id: string, formData: FormData) {
     slantV,
     antalPersoner,
     antalMaskiner,
+    antalLastbilar,
     poster,
     coefOverrides,
     tjansterManuell,
@@ -426,6 +432,7 @@ export async function updateProject(id: string, formData: FormData) {
     slantV,
     antalPersoner,
     antalMaskiner,
+    antalLastbilar,
     coefOverrides,
     tjansterManuell,
     intrangManuell,
@@ -444,6 +451,7 @@ export async function updateProject(id: string, formData: FormData) {
       besiktning,
       antal_personer: antalPersoner,
       antal_maskiner: antalMaskiner,
+      antal_lastbilar: antalLastbilar,
       coef_overrides: coefOverrides,
       schaktdjup,
       schaktbredd,

@@ -81,6 +81,7 @@ export default async function EditProjectPage({ params }: PageProps<"/projects/[
               slantV: project.slant_v,
               antalPersoner: project.antal_personer,
               antalMaskiner: project.antal_maskiner,
+              antalLastbilar: project.antal_lastbilar,
               poster: project.poster || [],
               coefOverrides: project.coef_overrides || {},
               tjansterManuell: project.tjanster_manuell,

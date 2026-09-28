@@ -36,6 +36,7 @@ export interface ExistingProject {
   slantV: number;
   antalPersoner: number;
   antalMaskiner: number;
+  antalLastbilar: number;
   poster: Post[];
   coefOverrides: CoefOverrides;
   tjansterManuell?: number | null;
@@ -64,6 +65,7 @@ export default function ProjectForm({
   const [slantV, setSlantV] = useState(project?.slantV ?? 1);
   const [antalPersoner, setAntalPersoner] = useState(project?.antalPersoner ?? 3);
   const [antalMaskiner, setAntalMaskiner] = useState(project?.antalMaskiner ?? 1);
+  const [antalLastbilar, setAntalLastbilar] = useState(project?.antalLastbilar ?? 0);
   const [poster, setPoster] = useState<Post[]>(project?.poster ?? []);
   const [coefOverrides, setCoefOverrides] = useState<CoefOverrides>(project?.coefOverrides ?? {});
   // Känd faktisk kostnad (t.ex. en offert) - textfält som strängar så fältet kan vara
@@ -164,6 +166,7 @@ export default function ProjectForm({
       slantV,
       antalPersoner,
       antalMaskiner,
+      antalLastbilar,
       coefOverrides,
       tjansterManuell: tjansterManuellNum,
       intrangManuell: intrangManuellNum,
@@ -180,6 +183,7 @@ export default function ProjectForm({
       slantV,
       antalPersoner,
       antalMaskiner,
+      antalLastbilar,
       coefOverrides,
       tjansterManuellNum,
       intrangManuellNum,
@@ -395,7 +399,7 @@ export default function ProjectForm({
             ))}
           </select>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <div>
             <label className="block text-xs font-medium text-slate-600">Antal i laget</label>
             <input type="number" name="antalPersoner" value={antalPersoner} onChange={(e) => setAntalPersoner(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
@@ -403,6 +407,10 @@ export default function ProjectForm({
           <div>
             <label className="block text-xs font-medium text-slate-600">Antal maskiner</label>
             <input type="number" name="antalMaskiner" value={antalMaskiner} onChange={(e) => setAntalMaskiner(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Antal lastbilar</label>
+            <input type="number" name="antalLastbilar" value={antalLastbilar} onChange={(e) => setAntalLastbilar(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
           </div>
         </div>
       </div>
