@@ -335,7 +335,7 @@ export default function ProjectForm({
             <input type="number" step="0.1" name="schaktdjup" value={schaktdjup} onChange={(e) => setSchaktdjup(Number(e.target.value))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
           </div>
           <div>
-            <label className="block text-[10px] text-slate-400">Schaktbredd (m)</label>
+            <label className="block text-[10px] text-slate-400">Schaktbredd (botten, m)</label>
             <input type="number" step="0.1" name="schaktbredd" value={schaktbredd} onChange={(e) => setSchaktbredd(Number(e.target.value))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
           </div>
           <div>
