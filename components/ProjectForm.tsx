@@ -17,35 +17,55 @@ import {
   type MaterialRow,
   type Post,
 } from "@/lib/calc";
-import { createProject } from "@/app/actions";
+import { createProject, updateProject } from "@/app/actions";
 
 function uid() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+}
+
+export interface ExistingProject {
+  id: string;
+  namn: string;
+  arstid: string;
+  servis: number;
+  intrang: number;
+  besiktning: number;
+  schaktdjup: number;
+  schaktbredd: number;
+  slantH: number;
+  slantV: number;
+  antalPersoner: number;
+  antalMaskiner: number;
+  poster: Post[];
+  coefOverrides: CoefOverrides;
 }
 
 export default function ProjectForm({
   coef,
   materialDB,
   calibrationProjects,
+  project,
 }: {
   coef: Coef;
   materialDB: MaterialRow[];
   calibrationProjects: { utfall?: number | null; prognosTotal?: number | null }[];
+  project?: ExistingProject;
 }) {
-  const [namn, setNamn] = useState("");
-  const [arstid, setArstid] = useState("host");
-  const [servis, setServis] = useState(0);
-  const [intrang, setIntrang] = useState(0);
-  const [besiktning, setBesiktning] = useState(0);
-  const [schaktdjup, setSchaktdjup] = useState(1.5);
-  const [schaktbredd, setSchaktbredd] = useState(1.0);
-  const [slantH, setSlantH] = useState(1);
-  const [slantV, setSlantV] = useState(1);
-  const [antalPersoner, setAntalPersoner] = useState(3);
-  const [antalMaskiner, setAntalMaskiner] = useState(1);
-  const [poster, setPoster] = useState<Post[]>([]);
-  const [coefOverrides, setCoefOverrides] = useState<CoefOverrides>({});
+  const [namn, setNamn] = useState(project?.namn ?? "");
+  const [arstid, setArstid] = useState(project?.arstid ?? "host");
+  const [servis, setServis] = useState(project?.servis ?? 0);
+  const [intrang, setIntrang] = useState(project?.intrang ?? 0);
+  const [besiktning, setBesiktning] = useState(project?.besiktning ?? 0);
+  const [schaktdjup, setSchaktdjup] = useState(project?.schaktdjup ?? 1.5);
+  const [schaktbredd, setSchaktbredd] = useState(project?.schaktbredd ?? 1.0);
+  const [slantH, setSlantH] = useState(project?.slantH ?? 1);
+  const [slantV, setSlantV] = useState(project?.slantV ?? 1);
+  const [antalPersoner, setAntalPersoner] = useState(project?.antalPersoner ?? 3);
+  const [antalMaskiner, setAntalMaskiner] = useState(project?.antalMaskiner ?? 1);
+  const [poster, setPoster] = useState<Post[]>(project?.poster ?? []);
+  const [coefOverrides, setCoefOverrides] = useState<CoefOverrides>(project?.coefOverrides ?? {});
   const [advOpen, setAdvOpen] = useState(false);
+  const formAction = project ? updateProject.bind(null, project.id) : createProject;
 
   // Skriv/rensa ett override-fält (dotted path). Tomt eller lika med globalt värde
   // tas bort helt - fältet ärver då det globala värdet igen. Samma mönster som
@@ -155,7 +175,7 @@ export default function ProjectForm({
   const activeOverrideCount = projectOverrideFields.filter((f) => getCoefByPath(coefOverrides, f.path) !== undefined).length;
 
   return (
-    <form action={createProject} className="space-y-6">
+    <form action={formAction} className="space-y-6">
       <input type="hidden" name="posterJson" value={JSON.stringify(poster)} />
       <input type="hidden" name="coefOverridesJson" value={JSON.stringify(coefOverrides)} />
 
@@ -433,7 +453,7 @@ export default function ProjectForm({
       </div>
 
       <button type="submit" className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white">
-        Spara projekt
+        {project ? "Spara ändringar" : "Spara projekt"}
       </button>
     </form>
   );

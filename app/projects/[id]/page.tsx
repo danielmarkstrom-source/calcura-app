@@ -102,6 +102,12 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
             </span>
           </div>
 
+          {project.status === "pagaende" && (
+            <Link href={`/projects/${project.id}/edit`} className="mt-2 inline-block text-xs text-[var(--muted)] hover:text-[var(--navy)]">
+              Redigera projekt
+            </Link>
+          )}
+
           <div className="mt-4 grid grid-cols-2 gap-3 rounded-md bg-[var(--navy)] p-4 text-white sm:grid-cols-4">
             <div>
               <div className="text-[10px] uppercase tracking-wide text-slate-400">Prognos</div>
@@ -230,7 +236,8 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
                   </div>
                 )}
                 <p className="mt-3 text-xs text-slate-500">
-                  Denna avvikelse räknas in i kalibreringen för nya prognoser (kr/tim-schablonerna, inte materialpriser).
+                  Denna avvikelse räknas in i kalibreringen för nya prognoser (bara de tidsdrivna
+                  posterna - arbetstid, maskinkostnad och tjänstedelen av schaktkostnad).
                 </p>
               </>
             ) : (

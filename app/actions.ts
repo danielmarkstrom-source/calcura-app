@@ -229,15 +229,8 @@ async function getOrgCalcContext(supabase: Awaited<ReturnType<typeof createClien
   return { coef, materialDB, projectsForCalibration };
 }
 
-/**
- * Skapar ett projekt med flera sträckor, massberäkning m.m. `posterJson` kommer från
- * ProjectForm (client-komponenten bygger raderna interaktivt och serialiserar hela
- * listan till ett dolt fält - enklare än att indexera FormData-fält per rad).
- */
-export async function createProject(formData: FormData) {
-  const supabase = await createClient();
-  const orgId = await requireOrgId(supabase);
-
+/** Tolkar ProjectForm:ens fält - delad av createProject och updateProject. */
+function parseProjectForm(formData: FormData) {
   const namn = String(formData.get("namn") || "").trim() || "Namnlöst projekt";
   const arstid = String(formData.get("arstid") || "host");
   const servis = Number(formData.get("servis") || 0);
@@ -251,24 +244,20 @@ export async function createProject(formData: FormData) {
   const antalMaskiner = Number(formData.get("antalMaskiner") || 1);
 
   let poster: Post[] = [];
-  try {
-    const parsed = JSON.parse(String(formData.get("posterJson") || "[]"));
-    if (Array.isArray(parsed)) {
-      poster = parsed
-        .filter((p) => p && p.slag && p.material && p.dimension && p.langd > 0)
-        .map((p, i) => ({
-          id: String(p.id || `p${i}`),
-          slag: String(p.slag),
-          material: String(p.material),
-          dimension: Number(p.dimension),
-          langd: Number(p.langd),
-          mark: p.mark ? String(p.mark) : "gatumark",
-          enhet: p.enhet === "st" ? "st" : "m",
-          delarSchakt: p.delarSchakt !== false,
-        }));
-    }
-  } catch {
-    return;
+  const parsed = JSON.parse(String(formData.get("posterJson") || "[]"));
+  if (Array.isArray(parsed)) {
+    poster = parsed
+      .filter((p) => p && p.slag && p.material && p.dimension && p.langd > 0)
+      .map((p, i) => ({
+        id: String(p.id || `p${i}`),
+        slag: String(p.slag),
+        material: String(p.material),
+        dimension: Number(p.dimension),
+        langd: Number(p.langd),
+        mark: p.mark ? String(p.mark) : "gatumark",
+        enhet: p.enhet === "st" ? "st" : "m",
+        delarSchakt: p.delarSchakt !== false,
+      }));
   }
 
   let coefOverrides: CoefOverrides = {};
@@ -278,6 +267,26 @@ export async function createProject(formData: FormData) {
   } catch {
     coefOverrides = {};
   }
+
+  return { namn, arstid, servis, intrang, besiktning, schaktdjup, schaktbredd, slantH, slantV, antalPersoner, antalMaskiner, poster, coefOverrides };
+}
+
+/**
+ * Skapar ett projekt med flera sträckor, massberäkning m.m. `posterJson` kommer från
+ * ProjectForm (client-komponenten bygger raderna interaktivt och serialiserar hela
+ * listan till ett dolt fält - enklare än att indexera FormData-fält per rad).
+ */
+export async function createProject(formData: FormData) {
+  const supabase = await createClient();
+  const orgId = await requireOrgId(supabase);
+
+  let fields: ReturnType<typeof parseProjectForm>;
+  try {
+    fields = parseProjectForm(formData);
+  } catch {
+    return;
+  }
+  const { namn, arstid, servis, intrang, besiktning, schaktdjup, schaktbredd, slantH, slantV, antalPersoner, antalMaskiner, poster, coefOverrides } = fields;
 
   const { coef, materialDB, projectsForCalibration } = await getOrgCalcContext(supabase, orgId);
 
@@ -322,6 +331,74 @@ export async function createProject(formData: FormData) {
 
   revalidatePath("/");
   redirect("/");
+}
+
+/**
+ * Uppdaterar ett pågående projekts grunddata (samma fält som vid skapande) och räknar
+ * om den frusna prognos_snapshot - till skillnad från globala koefficientändringar (som
+ * INTE ska ändra befintliga projekt retroaktivt) är det här en medveten redigering av
+ * just det här projektets egna indata, så en ny snapshot är rätt.
+ */
+export async function updateProject(id: string, formData: FormData) {
+  const supabase = await createClient();
+  const orgId = await requireOrgId(supabase);
+
+  const { data: existing } = await supabase.from("projects").select("status").eq("id", id).eq("org_id", orgId).maybeSingle();
+  if (!existing || existing.status !== "pagaende") throw new Error("Bara pågående projekt kan redigeras.");
+
+  let fields: ReturnType<typeof parseProjectForm>;
+  try {
+    fields = parseProjectForm(formData);
+  } catch {
+    return;
+  }
+  const { namn, arstid, servis, intrang, besiktning, schaktdjup, schaktbredd, slantH, slantV, antalPersoner, antalMaskiner, poster, coefOverrides } = fields;
+
+  const { coef, materialDB, projectsForCalibration } = await getOrgCalcContext(supabase, orgId);
+
+  const projectInput = {
+    poster,
+    arstid,
+    servis,
+    intrang,
+    besiktning,
+    schaktdjup,
+    schaktbredd,
+    slantH,
+    slantV,
+    antalPersoner,
+    antalMaskiner,
+    coefOverrides,
+  };
+
+  const calc = calcProjectDisplay(projectInput, effCoef(coef, { coefOverrides }), materialDB, projectsForCalibration);
+
+  const { error } = await supabase
+    .from("projects")
+    .update({
+      namn,
+      poster,
+      servis,
+      arstid,
+      intrang,
+      besiktning,
+      antal_personer: antalPersoner,
+      antal_maskiner: antalMaskiner,
+      coef_overrides: coefOverrides,
+      schaktdjup,
+      schaktbredd,
+      slant_h: slantH,
+      slant_v: slantV,
+      prognos_total: calc.total,
+      prognos_snapshot: calc,
+    })
+    .eq("id", id)
+    .eq("org_id", orgId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/");
+  revalidatePath(`/projects/${id}`);
+  redirect(`/projects/${id}`);
 }
 
 /** Registrerar faktisk slutkostnad och markerar projektet avslutat. */
