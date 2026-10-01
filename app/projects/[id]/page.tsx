@@ -122,6 +122,9 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
             <div>
               <div className="text-[10px] uppercase tracking-wide text-slate-400">Prognos</div>
               <div className="text-base font-bold">{formatKr(calc.total)}</div>
+              <div className="text-[10px] text-slate-400">
+                {formatKr(calc.low)} – {formatKr(calc.high)}
+              </div>
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-wide text-slate-400">Kr/meter</div>
@@ -158,7 +161,8 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
 
           <div className="mt-6 text-sm text-slate-500">
             Schaktdjup {(project.schaktdjup || 0).toFixed(1)} m · schaktbredd {(project.schaktbredd || 0).toFixed(1)} m ·
-            Fall A {calc.massor.fallAVolym.toFixed(1)} m³ · Fall B {calc.massor.fallBVolym.toFixed(1)} m³ · anläggningsmaterial{" "}
+            Fall A {calc.massor.fallAVolym.toFixed(1)} m³ ({fmtInt(calc.massor.fallATransporter)} lass) · Fall B{" "}
+            {calc.massor.fallBVolym.toFixed(1)} m³ ({fmtInt(calc.massor.fallBTransporter)} lass) · anläggningsmaterial{" "}
             {calc.massor.anlaggningsmaterialBehov.toFixed(1)} m³
           </div>
 

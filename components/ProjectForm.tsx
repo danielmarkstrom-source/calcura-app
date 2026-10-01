@@ -583,7 +583,8 @@ export default function ProjectForm({
           handlingarna.
         </p>
         <p className="mt-2 text-xs text-slate-500">
-          Fall A {calc.massor.fallAVolym.toFixed(1)} m³ · Fall B {calc.massor.fallBVolym.toFixed(1)} m³ · anläggningsmaterial{" "}
+          Fall A {calc.massor.fallAVolym.toFixed(1)} m³ ({fmtInt(calc.massor.fallATransporter)} lass) · Fall B{" "}
+          {calc.massor.fallBVolym.toFixed(1)} m³ ({fmtInt(calc.massor.fallBTransporter)} lass) · anläggningsmaterial{" "}
           {calc.massor.anlaggningsmaterialBehov.toFixed(1)} m³
         </p>
       </div>
@@ -717,6 +718,9 @@ export default function ProjectForm({
         <div>
           <div className="text-[10px] uppercase tracking-wide text-slate-400">Kostnad</div>
           <div className="text-base font-bold">{formatKr(calc.total)}</div>
+          <div className="text-[10px] text-slate-400">
+            {formatKr(calc.low)} – {formatKr(calc.high)}
+          </div>
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-wide text-slate-400">Kr/meter</div>
