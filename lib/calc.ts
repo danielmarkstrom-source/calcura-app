@@ -709,11 +709,14 @@ export function computeFramdrift(p: { framdrift?: FramdriftEntry[]; servis?: num
 
   const revideradTotalDagar = revideradSchaktDagar !== null ? revideradSchaktDagar + ovrigaDagar : null;
   const dagarAvvikelse = revideradTotalDagar !== null ? revideradTotalDagar - calc.dagar : null;
-  // Kostnadsomprognos: bara den tidsdrivna kostnaden (arbetstid/maskin/tjänster) skalar med
-  // schakttiden. Material, anläggningsmaterial, servis/intrång/besiktning ligger kvar.
+  // Kostnadsomprognos: den tidsdrivna kostnaden (arbetstid/maskin/tjänster) skalar med HELA
+  // projektets tidsöverdrag - inte bara schaktdelen - eftersom samma lag och maskiner ligger
+  // kvar på plats oavsett om det är schaktet, serviserna eller brunnarna som drar ut på tiden.
+  // Fastprisposter (material, anläggningsmaterial, servis-/intrångsschablonerna,
+  // besiktning m.fl.) påverkas aldrig, oavsett hur mycket tidsplanen avviker.
   const tidsdriven = calc.tidsdrivenTotal != null ? calc.tidsdrivenTotal : calc.ovrigtTotal || 0;
-  const schaktFaktor = revideradSchaktDagar !== null && schaktDagarPlan > 0 ? revideradSchaktDagar / schaktDagarPlan : null;
-  const revideradKostnad = schaktFaktor !== null ? calc.total + tidsdriven * (schaktFaktor - 1) : null;
+  const tidsFaktor = revideradTotalDagar !== null && calc.dagar > 0 ? revideradTotalDagar / calc.dagar : null;
+  const revideradKostnad = tidsFaktor !== null ? calc.total + tidsdriven * (tidsFaktor - 1) : null;
   return {
     entries,
     totalMeter,
