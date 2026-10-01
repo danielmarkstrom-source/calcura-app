@@ -18,7 +18,18 @@ export default function FramdriftForm({ projectId }: { projectId: string }) {
           <label className="block text-[10px] text-slate-400">Dagar åtgångna</label>
           <input type="number" name="dagar" placeholder="t.ex. 25" className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
         </div>
+        <div>
+          <label className="block text-[10px] text-slate-400">Serviser utförda</label>
+          <input type="number" name="servis" placeholder="t.ex. 2" className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+        </div>
+        <div>
+          <label className="block text-[10px] text-slate-400">Brunnar utförda</label>
+          <input type="number" name="brunnar" placeholder="t.ex. 1" className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+        </div>
       </div>
+      <p className="text-[10px] text-slate-400">
+        Allt avser samma period - meter/serviser/brunnar som gjorts under de angivna dagarna.
+      </p>
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       <button
         type="submit"

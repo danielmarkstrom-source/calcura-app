@@ -573,13 +573,15 @@ export async function addFramdriftEntry(_prevState: ActionState, formData: FormD
   const projectId = String(formData.get("projectId") || "");
   const meter = Number(formData.get("meter") || 0);
   const dagar = Number(formData.get("dagar") || 0);
+  const servis = Number(formData.get("servis") || 0);
+  const brunnar = Number(formData.get("brunnar") || 0);
   if (!projectId || !meter || !dagar) return { error: "Ange både meter och dagar för mätpunkten." };
 
   const { data: project } = await supabase.from("projects").select("framdrift").eq("id", projectId).eq("org_id", orgId).maybeSingle();
   if (!project) return { error: "Hittade inte projektet." };
 
   const framdrift = Array.isArray(project.framdrift) ? project.framdrift : [];
-  framdrift.push({ id: crypto.randomUUID(), datum: new Date().toISOString(), meter, dagar });
+  framdrift.push({ id: crypto.randomUUID(), datum: new Date().toISOString(), meter, dagar, servis, brunnar });
 
   const { error } = await supabase.from("projects").update({ framdrift }).eq("id", projectId).eq("org_id", orgId);
   if (error) return { error: error.message };

@@ -35,6 +35,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
 
   const { data: settingsRow } = await supabase.from("org_settings").select("coef").eq("org_id", orgId).maybeSingle();
   const globalCoef: Coef = { ...DEFAULT_COEF, ...((settingsRow?.coef as object) || {}) };
+  const effectiveCoef = effCoef(globalCoef, { coefOverrides: project.coef_overrides });
 
   // Frusen kalkyl från när projektet sparades (samma princip som piloten: ändrade
   // koefficienter/kalibrering ska INTE ändra redan sparade projekts prognos retroaktivt).
@@ -78,7 +79,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
         intrangManuell: project.intrang_manuell,
         omgivningspaverkanManuell: project.omgivningspaverkan_manuell,
       },
-      effCoef(globalCoef, { coefOverrides: project.coef_overrides }),
+      effectiveCoef,
       materialDB,
       projectsForCalibration
     );
@@ -87,7 +88,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
   const avvikelse = project.utfall ? ((project.utfall - (project.prognos_total || 0)) / (project.prognos_total || 1)) * 100 : null;
   const fd =
     project.status === "pagaende"
-      ? computeFramdrift({ framdrift: project.framdrift }, calc)
+      ? computeFramdrift({ framdrift: project.framdrift, servis: project.servis, brunnar: project.antal_brunnar }, calc, effectiveCoef)
       : null;
 
   return (
@@ -173,8 +174,9 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Framdrift</h2>
               <div className="mb-6 rounded-md border border-slate-200 bg-white p-4">
                 <p className="text-xs text-slate-500">
-                  Logga hur långt ni faktiskt kommit och hur många dagar det tagit, så räknas en reviderad
-                  prognos för resten fram utifrån den faktiska takten hittills.
+                  Logga hur långt ni faktiskt kommit (meter, serviser, brunnar) och hur många dagar det
+                  tagit, så räknas en reviderad prognos för resten fram utifrån den faktiska takten
+                  hittills.
                 </p>
                 {fd.entries.length > 0 && (
                   <div className="mt-3 space-y-1">
@@ -182,6 +184,8 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
                       <div key={e.id} className="flex items-center justify-between text-xs text-slate-600">
                         <span className="font-mono text-slate-400">{new Date(e.datum).toLocaleDateString("sv-SE")}</span>
                         <span className="font-mono">{e.meter} m</span>
+                        {(e.servis || 0) > 0 && <span className="font-mono">{e.servis} serv</span>}
+                        {(e.brunnar || 0) > 0 && <span className="font-mono">{e.brunnar} brunn</span>}
                         <span className="font-mono">{e.dagar} dgr</span>
                         <form action={removeFramdriftEntry.bind(null, project.id, e.id)}>
                           <button type="submit" className="text-red-500 hover:text-red-700" aria-label="Ta bort mätpunkt">
@@ -206,6 +210,22 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
                       <span className="text-slate-500">Återstående längd</span>
                       <span className="font-mono">{fd.aterstaendeLangd.toFixed(0)} m</span>
                     </div>
+                    {(project.servis || 0) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Serviser klara</span>
+                        <span className="font-mono">
+                          {fd.totalServis} av {project.servis}
+                        </span>
+                      </div>
+                    )}
+                    {(project.antal_brunnar || 0) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Brunnar klara</span>
+                        <span className="font-mono">
+                          {fd.totalBrunnar} av {project.antal_brunnar}
+                        </span>
+                      </div>
+                    )}
                     <div className="mt-1 flex justify-between border-t border-slate-200 pt-1 font-semibold">
                       <span>Reviderad total tidsåtgång</span>
                       <span className="font-mono">{fd.revideradTotalDagar?.toFixed(0)} dagar</span>

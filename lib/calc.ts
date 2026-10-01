@@ -219,6 +219,10 @@ export interface FramdriftEntry {
   datum: string;
   meter: number;
   dagar: number;
+  // Antal serviser/brunnar utförda under samma period som `meter`/`dagar` - valfria,
+  // odefinierat/0 för äldre mätpunkter som bara loggade ledningsmeter.
+  servis?: number;
+  brunnar?: number;
 }
 
 export function formatKr(n: number): string {
@@ -643,17 +647,33 @@ export interface FramdriftResult {
   dagarAvvikelse: number | null;
   revideradKostnad: number | null;
   ovrigaDagar: number;
+  totalServis: number;
+  aterstaendeServis: number;
+  totalBrunnar: number;
+  aterstaendeBrunnar: number;
 }
 
-export function computeFramdrift(p: { framdrift?: FramdriftEntry[] }, calc: CalcResult): FramdriftResult {
+// Räknar fram återstående dagar för en "övrig" arbetstyp (servis/brunn): om något är
+// loggat i mätpunkterna används den observerade takten (samma mönster som schaktmeter),
+// annars faller det tillbaka på schablonen (dagServis/dagBrunn) för det som är kvar -
+// vilket ger exakt samma resultat som tidigare när inget är loggat.
+function revideradAterstaendeForOvrigt(totalUtfort: number, totalDagar: number, planerat: number, dagarPerEnhetSchablon: number) {
+  const aterstaende = Math.max(0, planerat - totalUtfort);
+  const observeradTakt = totalUtfort > 0 && totalDagar > 0 ? totalUtfort / totalDagar : null;
+  const dagar = observeradTakt ? aterstaende / observeradTakt : aterstaende * dagarPerEnhetSchablon;
+  return { aterstaende, dagar };
+}
+
+export function computeFramdrift(p: { framdrift?: FramdriftEntry[]; servis?: number; brunnar?: number }, calc: CalcResult, coef: Coef): FramdriftResult {
   const entries = Array.isArray(p.framdrift) ? p.framdrift : [];
   const totalMeter = entries.reduce((a, e) => a + (e.meter || 0), 0);
   const totalDagar = entries.reduce((a, e) => a + (e.dagar || 0), 0);
+  const totalServis = entries.reduce((a, e) => a + (e.servis || 0), 0);
+  const totalBrunnar = entries.reduce((a, e) => a + (e.brunnar || 0), 0);
   const observeradTakt = totalMeter > 0 && totalDagar > 0 ? totalMeter / totalDagar : null;
   // Framdriften loggar ren schakt-/läggningstakt (meter per grävdag) - jämförs mot schakttiden
   // i planen, inte totala dagar (som även rymmer servis/besiktning).
   const schaktDagarPlan = calc.ledningDagar != null && calc.ledningDagar > 0 ? calc.ledningDagar : calc.dagar;
-  const ovrigaDagar = Math.max(0, (calc.dagar || 0) - schaktDagarPlan);
   // Planerad takt: räknas fram ur den faktiska schakttiden (ledningDagar), som redan
   // väger ihop varje sträckas egen dagstaktMark (marktyp) - korrekt även när ett
   // projekt blandar t.ex. gatumark och skogsmark.
@@ -661,6 +681,13 @@ export function computeFramdrift(p: { framdrift?: FramdriftEntry[] }, calc: Calc
   const aterstaendeLangd = Math.max(0, calc.langdTotal - totalMeter);
   const revideradAterstaendeDagar = observeradTakt ? aterstaendeLangd / observeradTakt : null;
   const revideradSchaktDagar = observeradTakt ? totalDagar + (revideradAterstaendeDagar as number) : null;
+
+  // Serviser och brunnar räknas om precis som schaktmeter - loggad takt om något är
+  // inrapporterat, annars kvarstår den ursprungliga schablonen oförändrad.
+  const servisResult = revideradAterstaendeForOvrigt(totalServis, totalDagar, p.servis || 0, coef.dagServis);
+  const brunnResult = revideradAterstaendeForOvrigt(totalBrunnar, totalDagar, p.brunnar || 0, coef.dagBrunn);
+  const ovrigaDagar = servisResult.dagar + brunnResult.dagar;
+
   const revideradTotalDagar = revideradSchaktDagar !== null ? revideradSchaktDagar + ovrigaDagar : null;
   const dagarAvvikelse = revideradTotalDagar !== null ? revideradTotalDagar - calc.dagar : null;
   // Kostnadsomprognos: bara den tidsdrivna kostnaden (arbetstid/maskin/tjänster) skalar med
@@ -681,5 +708,9 @@ export function computeFramdrift(p: { framdrift?: FramdriftEntry[] }, calc: Calc
     dagarAvvikelse,
     revideradKostnad,
     ovrigaDagar,
+    totalServis,
+    aterstaendeServis: servisResult.aterstaende,
+    totalBrunnar,
+    aterstaendeBrunnar: brunnResult.aterstaende,
   };
 }
