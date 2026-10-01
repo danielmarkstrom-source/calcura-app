@@ -590,7 +590,9 @@ export async function addFramdriftEntry(_prevState: ActionState, formData: FormD
   return { success: true };
 }
 
-/** Tar bort en framdriftsmätpunkt. Bindas: removeFramdriftEntry.bind(null, projectId, entryId). */
+/** Tar bort en framdriftsmätpunkt. Anropas direkt (inte som form-action) från
+ * RemoveFramdriftButton, som explicit kör router.refresh() efteråt - annars kunde
+ * borttagningen synas först efter en manuell omladdning i produktion. */
 export async function removeFramdriftEntry(projectId: string, entryId: string) {
   const supabase = await createClient();
   const orgId = await requireOrgId(supabase);

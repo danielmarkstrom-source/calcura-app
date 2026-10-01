@@ -5,7 +5,8 @@ import { calcProjectDisplay, computeFramdrift, effCoef, formatKr, fmtInt, DEFAUL
 import AppHeader from "@/components/AppHeader";
 import UtfallForm from "@/components/UtfallForm";
 import FramdriftForm from "@/components/FramdriftForm";
-import { deleteProject, removeFramdriftEntry } from "@/app/actions";
+import RemoveFramdriftButton from "@/components/RemoveFramdriftButton";
+import { deleteProject } from "@/app/actions";
 
 export default async function ProjectDetailPage({ params }: PageProps<"/projects/[id]">) {
   const { id } = await params;
@@ -187,11 +188,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
                         {(e.servis || 0) > 0 && <span className="font-mono">{e.servis} serv</span>}
                         {(e.brunnar || 0) > 0 && <span className="font-mono">{e.brunnar} brunn</span>}
                         <span className="font-mono">{e.dagar} dgr</span>
-                        <form action={removeFramdriftEntry.bind(null, project.id, e.id)}>
-                          <button type="submit" className="text-red-500 hover:text-red-700" aria-label="Ta bort mätpunkt">
-                            ×
-                          </button>
-                        </form>
+                        <RemoveFramdriftButton projectId={project.id} entryId={e.id} />
                       </div>
                     ))}
                   </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
 import {
   ARSTID,
   MARKTYP,
@@ -24,6 +25,22 @@ import { createProject, updateProject } from "@/app/actions";
 
 function uid() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+}
+
+// Egen komponent för att kunna använda useFormStatus - hooken läser pending-status
+// från närmaste förälder-<form> och måste därför renderas som ett barn till formuläret,
+// inte i samma komponent som själva <form>-taggen.
+function SubmitButton({ isEdit }: { isEdit: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+    >
+      {pending ? "Sparar..." : isEdit ? "Spara ändringar" : "Spara projekt"}
+    </button>
+  );
 }
 
 export interface ExistingProject {
@@ -715,9 +732,7 @@ export default function ProjectForm({
         </div>
       </div>
 
-      <button type="submit" className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white">
-        {project ? "Spara ändringar" : "Spara projekt"}
-      </button>
+      <SubmitButton isEdit={!!project} />
     </form>
   );
 }
