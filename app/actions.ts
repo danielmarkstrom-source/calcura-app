@@ -599,7 +599,8 @@ export async function removeFramdriftEntry(projectId: string, entryId: string) {
   if (!project) return;
   const framdrift = (Array.isArray(project.framdrift) ? project.framdrift : []).filter((e: { id: string }) => e.id !== entryId);
 
-  await supabase.from("projects").update({ framdrift }).eq("id", projectId).eq("org_id", orgId);
+  const { error } = await supabase.from("projects").update({ framdrift }).eq("id", projectId).eq("org_id", orgId);
+  if (error) throw new Error(error.message);
   revalidatePath(`/projects/${projectId}`);
 }
 
