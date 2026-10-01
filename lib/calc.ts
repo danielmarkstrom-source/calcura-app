@@ -62,6 +62,10 @@ export interface Coef {
   // tur automatiskt ger lägre arbetstids-/maskin-/tjänstekostnad för snabbare mark - en enda
   // mekanism istället för en dold takt-effekt plus en separat synlig kostnadsfaktor.
   dagstaktMark: Record<string, number>;
+  // Återställningskostnad (kr/m² återställd yta - längd x schaktets toppbredd) per
+  // marktyp: gatumiljö kräver full återställning/asfaltering, skogsmark bara en
+  // tillsnyggning, åkermark återföring till omkringliggande marknivå med matjord.
+  krAterstallningMark: Record<string, number>;
   arstid: Record<string, number>;
   co2Slag: Record<string, number>;
   co2Material: Record<string, number>;
@@ -96,6 +100,7 @@ export const DEFAULT_COEF: Coef = {
   timmarPerArbetsdag: 8,
   rateUnitVersion: 2,
   dagstaktMark: { gatumark: 6, skogsmark: 15, jordbruksmark: 20 },
+  krAterstallningMark: { gatumark: 800, skogsmark: 50, jordbruksmark: 150 },
   arstid: Object.fromEntries(ARSTID.map((a) => [a.id, a.faktor])),
   co2Slag: Object.fromEntries(LEDNINGSSLAG.map((s) => [s.id, s.co2])),
   co2Material: Object.fromEntries(MATERIAL.map((m) => [m.id, m.co2Faktor])),
@@ -386,6 +391,15 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     return { djup, bredd, brytdjup, toppbredd, fallAVolym, fallBVolym, totalVolym, fallATransporter, fallBTransporter, anlaggningsmaterialBehov };
   })();
 
+  // Återställning: yta (sträckans längd x schaktets toppbredd) x kr/m² för den
+  // sträckans marktyp - en ren projekterad schablonkostnad, inte tidsdriven. Gatumiljö
+  // kräver full återställning/asfaltering (dyrast), skogsmark bara en tillsnyggning,
+  // åkermark återföring till omkringliggande marknivå med matjord.
+  const atersallningKostnad = meterPosts.reduce(
+    (a, p2) => a + (p2.langd || 0) * massor.toppbredd * (coef.krAterstallningMark[p2.mark || "gatumark"] ?? 0),
+    0
+  );
+
   // Tidsbaserade kategorikostnader: schakttiden (dagar ur förläggningstakten) -> timmar.
   const tph = coef.timmarPerArbetsdag || 8;
   const antalPersoner = p.antalPersoner ?? 3;
@@ -457,7 +471,8 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     etableringKostnad +
     taKostnad +
     omgivningspaverkanKostnad +
-    driftTotal;
+    driftTotal +
+    atersallningKostnad;
   const co2 = ledningCO2 + (p.servis || 0) * 180;
   // Besiktning utförs av extern part och påverkar inte den egna schakttiden.
   const dagar = ledningDagar + servisDagar + brunnDagar;
@@ -494,6 +509,7 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     },
     { key: "intrang", label: "Fastighetsintrång" + (p.intrangManuell != null ? " (känd kostnad)" : ""), value: intrangKostnad },
     { key: "besiktning", label: "Besiktning", value: besiktningKostnad },
+    { key: "atersallning", label: "Återställning", value: atersallningKostnad },
     { key: "schaktslede", label: "Schaktsläde", value: schaktsledeKostnad },
     { key: "etablering", label: "Etablering", value: etableringKostnad },
     { key: "ta", label: "TA", value: taKostnad },
@@ -570,6 +586,9 @@ export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit
   { group: "Förläggningstakt", path: "dagstaktMark.gatumark", label: "Gatumark", unit: "m/dag" },
   { group: "Förläggningstakt", path: "dagstaktMark.skogsmark", label: "Skogsmark", unit: "m/dag" },
   { group: "Förläggningstakt", path: "dagstaktMark.jordbruksmark", label: "Jordbruksmark", unit: "m/dag" },
+  { group: "Återställning", path: "krAterstallningMark.gatumark", label: "Gatumark (full återställning/asfalt)", unit: "kr/m²" },
+  { group: "Återställning", path: "krAterstallningMark.skogsmark", label: "Skogsmark (tillsnyggning)", unit: "kr/m²" },
+  { group: "Återställning", path: "krAterstallningMark.jordbruksmark", label: "Åkermark (matjord/nivå)", unit: "kr/m²" },
   { group: "Årstidsfaktor", path: "arstid.var", label: "Vår", unit: "×", step: "0.05", perProject: false },
   { group: "Årstidsfaktor", path: "arstid.sommar", label: "Sommar", unit: "×", step: "0.05", perProject: false },
   { group: "Årstidsfaktor", path: "arstid.host", label: "Höst", unit: "×", step: "0.05", perProject: false },
