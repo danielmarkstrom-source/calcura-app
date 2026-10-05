@@ -314,7 +314,7 @@ export interface CalcResult {
   projektVeckor: number;
   omgivningspaverkanForeslaget: number;
   tidsdrivenTotal: number;
-  calibration?: { factor: number; n: number };
+  calibration?: { factor: number; n: number; mark?: string; markN?: number };
   // Faktorn som faktiskt applicerades på de tidsdrivna posterna i just den här prognosen
   // (1 om kalibrering är avstängd eller saknar underlag). Behövs för att kunna räkna bort
   // den igen när projektet senare avslutas och används som kalibreringsunderlag.
@@ -645,11 +645,26 @@ export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit
 
 /* ---------- Kalibrering ---------- */
 // Ett avslutat projekts bidrag till kalibreringen: utfallet och hur stor del av dess
-// (okalibrerade) prognos som var fast respektive tidsdriven.
+// (okalibrerade) prognos som var fast respektive tidsdriven. `mark` är projektets
+// dominerande marktyp (längdviktad) och används för marktypsspecifik kalibrering.
 export interface CalibrationPoint {
   utfall: number;
   staticKr: number;
   variableKr: number;
+  mark?: string;
+}
+
+// Projektets dominerande marktyp, viktad efter ledningslängd. Undefined om det saknas poster.
+export function dominantMark(poster: Post[] | null | undefined): string | undefined {
+  if (!Array.isArray(poster)) return undefined;
+  const sum: Record<string, number> = {};
+  for (const p of poster) {
+    if (p.enhet === "st") continue;
+    const m = p.mark || "gatumark";
+    sum[m] = (sum[m] || 0) + (p.langd || 0);
+  }
+  const best = Object.entries(sum).sort((x, y) => y[1] - x[1])[0];
+  return best ? best[0] : undefined;
 }
 
 // Plockar ut kalibreringsunderlaget ur ett avslutat projekts frusna prognos. Snapshoten
@@ -657,36 +672,79 @@ export interface CalibrationPoint {
 // här (annars skulle kalibreringen jämföra utfallet mot en redan justerad prognos och
 // svänga fram och tillbaka). Projekt utan tidsdrivna poster i snapshoten (äldre rader
 // från innan `variable` fanns) ger inget underlag.
-export function calibrationPoint(utfall: number | null | undefined, snapshot: CalcResult | null | undefined): CalibrationPoint | null {
+export function calibrationPoint(
+  utfall: number | null | undefined,
+  snapshot: CalcResult | null | undefined,
+  mark?: string
+): CalibrationPoint | null {
   if (!utfall || utfall <= 0 || !snapshot || !Array.isArray(snapshot.parts)) return null;
   const variableKr = snapshot.parts.reduce((a, pt) => a + (pt.variable ?? 0), 0);
   if (variableKr <= 0) return null;
   const applied = snapshot.kalibreringFaktor ?? (snapshot.calibration && snapshot.calibration.n > 0 ? snapshot.calibration.factor : 1);
   const snapshotTotal = snapshot.parts.reduce((a, pt) => a + pt.value, 0);
-  return { utfall, staticKr: snapshotTotal - variableKr * applied, variableKr };
+  return { utfall, staticKr: snapshotTotal - variableKr * applied, variableKr, mark };
 }
 
-export function calibrationPointsFromRows(rows: { utfall?: number | null; prognos_snapshot?: unknown }[]): CalibrationPoint[] {
-  return rows.map((r) => calibrationPoint(r.utfall, r.prognos_snapshot as CalcResult | null)).filter((p): p is CalibrationPoint => p !== null);
+// Raderna sorteras äldst först om `created_at` finns (nyare projekt väger mer, se
+// KALIBRERING_HALVERING); annars behålls ordningen.
+export function calibrationPointsFromRows(
+  rows: { utfall?: number | null; prognos_snapshot?: unknown; poster?: unknown; created_at?: string | null }[]
+): CalibrationPoint[] {
+  const ordered = rows.some((r) => r.created_at)
+    ? [...rows].sort((x, y) => String(x.created_at || "").localeCompare(String(y.created_at || "")))
+    : rows;
+  return ordered
+    .map((r) => calibrationPoint(r.utfall, r.prognos_snapshot as CalcResult | null, dominantMark(r.poster as Post[] | null)))
+    .filter((p): p is CalibrationPoint => p !== null);
 }
 
 // Hur mycket ett enskilt projekts utfall drar bort från 1 kommer att "lita på" - med få
 // projekt är snittet osäkert, så det dras mot 1 (n/(n+K): 1 projekt ≈ 33 %, 3 ≈ 60 %,
 // 10 ≈ 83 % av den observerade avvikelsen).
 const KALIBRERING_DAMPNING = 2;
+// Nyare projekt väger mer: vikten halveras för varje KALIBRERING_HALVERING projekt bakåt, så
+// kalibreringen hänger med när prisnivån/arbetssättet skiftar utan att bli nervös.
+const KALIBRERING_HALVERING = 10;
+// Marktypens egen avvikelse mot det globala snittet tas med k/(k+K) där k = antal projekt
+// av just den marktypen - med få sådana projekt gäller i praktiken den globala faktorn.
+const KALIBRERING_MARKTYP_K = 3;
+
+function weightedMeanImplied(points: CalibrationPoint[]): number | null {
+  const m = points.length;
+  let sumW = 0;
+  let sum = 0;
+  points.forEach((p, i) => {
+    if (!(p.utfall > 0 && p.variableKr > 0)) return;
+    const f = Math.min(2, Math.max(0.5, (p.utfall - p.staticKr) / p.variableKr));
+    const w = p.variableKr * Math.pow(0.5, (m - 1 - i) / KALIBRERING_HALVERING);
+    sumW += w;
+    sum += f * w;
+  });
+  return sumW > 0 ? sum / sumW : null;
+}
 
 // Faktor för de tidsdrivna posterna. Varje avslutat projekt ger en implicit faktor
 // (utfall - fast del) / tidsdriven del, avgränsad till 0,5-2,0 mot enstaka extremvärden,
-// och snittas viktat efter hur stor den tidsdrivna delen var (stora projekt säger mer).
-export function getCalibration(points: CalibrationPoint[]): { factor: number; n: number } {
-  const rows = points
-    .filter((p) => p.utfall > 0 && p.variableKr > 0)
-    .map((p) => ({ f: Math.min(2, Math.max(0.5, (p.utfall - p.staticKr) / p.variableKr)), w: p.variableKr }));
-  if (rows.length === 0) return { factor: 1, n: 0 };
-  const sumW = rows.reduce((a, r) => a + r.w, 0);
-  const mean = rows.reduce((a, r) => a + r.f * r.w, 0) / sumW;
-  const n = rows.length;
-  return { factor: 1 + (mean - 1) * (n / (n + KALIBRERING_DAMPNING)), n };
+// och snittas viktat efter hur stor den tidsdrivna delen var (stora projekt säger mer) och
+// hur nytt projektet är. `points` ska vara i tidsordning, äldst först. Med `mark` justeras
+// det globala snittet mot just den marktypens projekt (se KALIBRERING_MARKTYP_K).
+export function getCalibration(points: CalibrationPoint[], mark?: string): { factor: number; n: number; mark?: string; markN?: number } {
+  const valid = points.filter((p) => p.utfall > 0 && p.variableKr > 0);
+  const n = valid.length;
+  if (n === 0) return { factor: 1, n: 0 };
+  const globalMean = weightedMeanImplied(valid) as number;
+  let mean = globalMean;
+  let markN = 0;
+  if (mark) {
+    const ofMark = valid.filter((p) => p.mark === mark);
+    markN = ofMark.length;
+    if (markN > 0) {
+      const markMean = weightedMeanImplied(ofMark) as number;
+      mean = globalMean + (markMean - globalMean) * (markN / (markN + KALIBRERING_MARKTYP_K));
+    }
+  }
+  const factor = 1 + (mean - 1) * (n / (n + KALIBRERING_DAMPNING));
+  return mark ? { factor, n, mark, markN } : { factor, n };
 }
 
 export function calcProjectDisplay(
@@ -696,7 +754,7 @@ export function calcProjectDisplay(
   projectsForCalibration: CalibrationPoint[]
 ): CalcResult {
   const raw = calcProject(p, coef, materialDB);
-  const cal = getCalibration(projectsForCalibration);
+  const cal = getCalibration(projectsForCalibration, dominantMark(p.poster));
   if (!coef.calibrationEnabled || cal.n === 0) return { ...raw, calibration: cal, kalibreringFaktor: 1 };
   const f = cal.factor;
   // Bara den tidsdrivna delen av varje post (se `variable` på CalcPart - Arbetstid,

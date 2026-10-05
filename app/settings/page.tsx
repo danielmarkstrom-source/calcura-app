@@ -41,7 +41,7 @@ export default async function SettingsPage() {
 
   const [{ data: settingsRow }, { data: projectsData }] = await Promise.all([
     supabase.from("org_settings").select("coef").eq("org_id", orgId).maybeSingle(),
-    supabase.from("projects").select("utfall, prognos_snapshot").eq("org_id", orgId).not("utfall", "is", null),
+    supabase.from("projects").select("utfall, prognos_snapshot, poster, created_at").eq("org_id", orgId).not("utfall", "is", null),
   ]);
   const coef: Coef = { ...DEFAULT_COEF, ...((settingsRow?.coef as object) || {}) };
   const calibration = getCalibration(calibrationPointsFromRows(projectsData || []));

@@ -41,7 +41,7 @@ export default async function EditProjectPage({ params }: PageProps<"/projects/[
       .order("slag")
       .order("material")
       .order("dimension"),
-    supabase.from("projects").select("utfall, prognos_snapshot").eq("org_id", orgId).not("utfall", "is", null),
+    supabase.from("projects").select("utfall, prognos_snapshot, poster, created_at").eq("org_id", orgId).not("utfall", "is", null),
   ]);
 
   const coef: Coef = { ...DEFAULT_COEF, ...((settingsRow?.coef as object) || {}) };

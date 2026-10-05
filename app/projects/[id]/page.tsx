@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { rowToProjectInput } from "@/lib/projectRow";
-import { calcProjectDisplay, calibrationPointsFromRows, computeFramdrift, getCalibration, effCoef, formatKr, fmtInt, DEFAULT_COEF, type Coef, type MaterialRow, type CalcResult } from "@/lib/calc";
+import { calcProjectDisplay, calibrationPointsFromRows, computeFramdrift, dominantMark, getCalibration, effCoef, formatKr, fmtInt, DEFAULT_COEF, type Coef, type MaterialRow, type CalcResult } from "@/lib/calc";
 import AppHeader from "@/components/AppHeader";
 import UtfallForm from "@/components/UtfallForm";
 import FramdriftForm from "@/components/FramdriftForm";
@@ -46,7 +46,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
   let calc = project.prognos_snapshot as CalcResult | null;
   const needsCalibration = !calc || project.status === "pagaende";
   const { data: calibrationRows } = needsCalibration
-    ? await supabase.from("projects").select("utfall, prognos_snapshot").eq("org_id", orgId).not("utfall", "is", null)
+    ? await supabase.from("projects").select("utfall, prognos_snapshot, poster, created_at").eq("org_id", orgId).not("utfall", "is", null)
     : { data: null };
   const calibrationPoints = calibrationPointsFromRows(calibrationRows || []);
   if (!calc) {
@@ -64,7 +64,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
   }
 
   // Har kalibreringen (från avslutade projekt) ändrats sedan prognosen räknades?
-  const nowFactor = effectiveCoef.calibrationEnabled ? getCalibration(calibrationPoints).factor : 1;
+  const nowFactor = effectiveCoef.calibrationEnabled ? getCalibration(calibrationPoints, dominantMark(project.poster)).factor : 1;
   const usedFactor = calc.kalibreringFaktor ?? 1;
   const recalcHint =
     project.status === "pagaende" && Math.abs(nowFactor - usedFactor) > 0.005

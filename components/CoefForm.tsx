@@ -17,11 +17,13 @@ export default function CoefForm({ coef, calibration }: { coef: Coef; calibratio
           Använd kalibrering mot utfall
         </label>
         <p className="mt-1 text-xs text-slate-500">
-          Justerar bara de tidsdrivna posterna (arbetstid, den tidsdrivna delen av maskinparken och
-          tjänstedelen av schaktkostnad) utifrån hur mycket faktiskt utfall avvikit från prognoserna
-          på avslutade projekt. Material, anläggningsmaterial, fastighetsintrång, besiktning,
-          maskinhyra, etablering, TA och omgivningspåverkan bygger på projekteringen och kalibreras
-          aldrig.
+          Justerar bara de tidsdrivna posterna (arbetstid, den tidsdrivna delen av maskinparken,
+          tjänstedelen av schaktkostnad samt etablering (utrustning), TA och föreslagen
+          omgivningspåverkan) utifrån hur mycket faktiskt utfall avvikit från prognoserna på
+          avslutade projekt. Nyare projekt väger mer, och varje marktyp (gatu-, skogs-,
+          jordbruksmark) får gradvis sin egen faktor när det finns projekt av den typen. Material,
+          anläggningsmaterial, fastighetsintrång, besiktning, maskinhyra och etableringsarbetet
+          bygger på projekteringen och kalibreras aldrig. Siffran nedan är den globala faktorn.
         </p>
         <p className="mt-2 font-mono text-xs text-slate-600">
           {calibration.n === 0 ? "Ingen data ännu" : `Faktor ${calibration.factor.toFixed(3)}× baserat på ${calibration.n} avslutade projekt`}

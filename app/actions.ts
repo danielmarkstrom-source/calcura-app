@@ -228,7 +228,7 @@ async function getOrgCalcContext(supabase: Awaited<ReturnType<typeof createClien
   const [{ data: settingsRow }, { data: materialRowsData }, { data: projectsData }] = await Promise.all([
     supabase.from("org_settings").select("coef").eq("org_id", orgId).maybeSingle(),
     supabase.from("material_rows").select("*").eq("org_id", orgId),
-    supabase.from("projects").select("utfall, prognos_snapshot").eq("org_id", orgId).not("utfall", "is", null),
+    supabase.from("projects").select("utfall, prognos_snapshot, poster, created_at").eq("org_id", orgId).not("utfall", "is", null),
   ]);
   const coef: Coef = { ...DEFAULT_COEF, ...((settingsRow?.coef as object) || {}) };
   const materialDB: MaterialRow[] = (materialRowsData || []).map((r) => ({
