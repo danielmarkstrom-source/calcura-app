@@ -14,6 +14,7 @@ import {
   getCoefByPath,
   materialLabel,
   slagLabel,
+  type CalibrationPoint,
   type Coef,
   type CoefOverrides,
   type FritextPost,
@@ -58,7 +59,6 @@ export interface ExistingProject {
   antalPersoner: number;
   maskinpark: MaskinPost[];
   hyresdagarSchaktslede: number;
-  projekttidVeckor: number;
   poster: Post[];
   fritextposter: FritextPost[];
   driftposter: FritextPost[];
@@ -76,7 +76,7 @@ export default function ProjectForm({
 }: {
   coef: Coef;
   materialDB: MaterialRow[];
-  calibrationProjects: { utfall?: number | null; prognosTotal?: number | null }[];
+  calibrationProjects: CalibrationPoint[];
   project?: ExistingProject;
 }) {
   const [namn, setNamn] = useState(project?.namn ?? "");
@@ -92,7 +92,6 @@ export default function ProjectForm({
   const [antalPersoner, setAntalPersoner] = useState(project?.antalPersoner ?? 3);
   const [maskinpark, setMaskinpark] = useState<MaskinPost[]>(project?.maskinpark ?? []);
   const [hyresdagarSchaktslede, setHyresdagarSchaktslede] = useState(project?.hyresdagarSchaktslede ?? 0);
-  const [projekttidVeckor, setProjekttidVeckor] = useState(project?.projekttidVeckor ?? 0);
   const [poster, setPoster] = useState<Post[]>(project?.poster ?? []);
   const [fritextposter, setFritextposter] = useState<FritextPost[]>(project?.fritextposter ?? []);
   const [driftposter, setDriftposter] = useState<FritextPost[]>(project?.driftposter ?? []);
@@ -231,7 +230,6 @@ export default function ProjectForm({
       antalPersoner,
       maskinpark,
       hyresdagarSchaktslede,
-      projekttidVeckor,
       fritextposter,
       driftposter,
       coefOverrides,
@@ -253,7 +251,6 @@ export default function ProjectForm({
       antalPersoner,
       maskinpark,
       hyresdagarSchaktslede,
-      projekttidVeckor,
       fritextposter,
       driftposter,
       coefOverrides,
@@ -472,18 +469,19 @@ export default function ProjectForm({
               name="omgivningspaverkanManuell"
               value={omgivningspaverkanManuell}
               onChange={(e) => setOmgivningspaverkanManuell(e.target.value)}
-              placeholder={String(Math.round(projekttidVeckor * coef.krOmgivningspaverkanPerVecka))}
+              placeholder={String(Math.round(calc.omgivningspaverkanForeslaget))}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
             <p className="mt-0.5 text-[10px] text-slate-400">
-              Föreslaget värde ({formatKr(projekttidVeckor * coef.krOmgivningspaverkanPerVecka)}) baseras på
-              projekttiden - varierar ofta mycket, ändra vid behov.
+              Föreslaget värde ({formatKr(calc.omgivningspaverkanForeslaget)}) baseras på den beräknade
+              projekttiden ({calc.projektVeckor.toFixed(1)} veckor inkl. etablering/avetablering) - varierar
+              ofta mycket, ändra vid behov.
             </p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-slate-600">Årstid</label>
           <select name="arstid" value={arstid} onChange={(e) => setArstid(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
@@ -497,10 +495,6 @@ export default function ProjectForm({
         <div>
           <label className="block text-xs font-medium text-slate-600">Antal i laget</label>
           <input type="number" name="antalPersoner" value={antalPersoner} onChange={(e) => setAntalPersoner(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-600">Beräknad projekttid (veckor)</label>
-          <input type="number" name="projekttidVeckor" value={projekttidVeckor} onChange={(e) => setProjekttidVeckor(Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
       </div>
 

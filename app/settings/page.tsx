@@ -4,7 +4,7 @@ import InviteForm from "@/components/InviteForm";
 import AppHeader from "@/components/AppHeader";
 import CoefForm from "@/components/CoefForm";
 import OrgNameForm from "@/components/OrgNameForm";
-import { DEFAULT_COEF, getCalibration, type Coef } from "@/lib/calc";
+import { DEFAULT_COEF, calibrationPointsFromRows, getCalibration, type Coef } from "@/lib/calc";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -41,10 +41,10 @@ export default async function SettingsPage() {
 
   const [{ data: settingsRow }, { data: projectsData }] = await Promise.all([
     supabase.from("org_settings").select("coef").eq("org_id", orgId).maybeSingle(),
-    supabase.from("projects").select("utfall, prognos_total").eq("org_id", orgId),
+    supabase.from("projects").select("utfall, prognos_snapshot").eq("org_id", orgId).not("utfall", "is", null),
   ]);
   const coef: Coef = { ...DEFAULT_COEF, ...((settingsRow?.coef as object) || {}) };
-  const calibration = getCalibration((projectsData || []).map((p) => ({ utfall: p.utfall, prognosTotal: p.prognos_total })));
+  const calibration = getCalibration(calibrationPointsFromRows(projectsData || []));
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-[var(--paper)]">

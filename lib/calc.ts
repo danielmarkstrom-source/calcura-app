@@ -75,9 +75,15 @@ export interface Coef {
   krBesiktning: number;
   krBrunn: number;
   krSchaktslede: number;
-  // Etablering/TA räknas som kr/vecka x en uppskattad projekttid. Omgivningspåverkan
-  // använder samma modell bara för att räkna fram ett FÖRESLAGET värde - varierar för
-  // mycket mellan projekt för att låsas till en formel, se ProjectInput.omgivningspaverkanManuell.
+  // Etablering (utrustning)/TA räknas som kr/vecka x den beräknade projekttiden (schaktdagar
+  // + etablerings-/avetableringsdagar, 5 arbetsdagar/vecka). Omgivningspåverkan använder
+  // samma modell bara för att räkna fram ett FÖRESLAGET värde - varierar för mycket mellan
+  // projekt för att låsas till en formel, se ProjectInput.omgivningspaverkanManuell.
+  // Själva etablerings-/avetableringsarbetet (några man + hjullastare + transporter, ingen
+  // grävmaskin på plats) räknas separat: antal dagar x kr/dag.
+  dagarEtablering: number;
+  dagarAvetablering: number;
+  krEtableringsdag: number;
   krEtableringPerVecka: number;
   krTAPerVecka: number;
   krOmgivningspaverkanPerVecka: number;
@@ -113,6 +119,9 @@ export const DEFAULT_COEF: Coef = {
   // Schablonerna nedan är grovt räknade från en verklig debiteringshistorik (273 m,
   // ~20,5 veckors projekttid): Container/vagn/redskap 87 000 kr, TA 245 500 kr,
   // Omgivningspåverkan 111 000 kr, avrundat per vecka.
+  dagarEtablering: 3,
+  dagarAvetablering: 3,
+  krEtableringsdag: 10000, // 2-3 man + hjullastare + lite transport; en full produktionsdag kostar ca 45 000 kr
   krEtableringPerVecka: 4250,
   krTAPerVecka: 12000,
   krOmgivningspaverkanPerVecka: 5400,
@@ -191,12 +200,9 @@ export interface ProjectInput {
   // Hyrestid för schaktsläde (dagar) - satt fritt per projekt, frikopplad från den
   // beräknade schakttiden (kan behövas längre eller kortare än själva grävningen).
   hyresdagarSchaktslede?: number;
-  // Uppskattad projekttid (veckor) - driver Etablering och TA (kr/vecka), och används
-  // för att föreslå ett värde för Omgivningspåverkan (se nedan).
-  projekttidVeckor?: number;
   // Omgivningspåverkan varierar för mycket mellan projekt för att låsas till en formel -
   // manuellt inskrivet värde. null/odefinierat = använd det föreslagna värdet
-  // (krOmgivningspaverkanPerVecka x projekttidVeckor).
+  // (krOmgivningspaverkanPerVecka x beräknad projekttid i veckor).
   omgivningspaverkanManuell?: number | null;
   fritextposter?: FritextPost[];
   // Driftkostnader (städning, förbrukningsartiklar, elförbrukning m.m.) - samma form
@@ -303,8 +309,16 @@ export interface CalcResult {
   arbetstimmar: number;
   antalPersoner: number;
   ledningDagar: number;
+  // Beräknad projekttid inkl. etablering/avetablering, i veckor (5 arbetsdagar/vecka) -
+  // driver Etablering (utrustning), TA och föreslagen Omgivningspåverkan.
+  projektVeckor: number;
+  omgivningspaverkanForeslaget: number;
   tidsdrivenTotal: number;
   calibration?: { factor: number; n: number };
+  // Faktorn som faktiskt applicerades på de tidsdrivna posterna i just den här prognosen
+  // (1 om kalibrering är avstängd eller saknar underlag). Behövs för att kunna räkna bort
+  // den igen när projektet senare avslutas och används som kalibreringsunderlag.
+  kalibreringFaktor?: number;
 }
 
 export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow[]): CalcResult {
@@ -433,14 +447,19 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
   const ovrigtTotal = arbetstidTotal + maskinTotal + anlaggningsTotal + tjansterTotal;
   const ledningKostnad = materialTotal + ovrigtTotal;
 
-  // Etablering och TA drivs av en uppskattad projekttid (veckor), frikopplad från
-  // schakttiden - precis som schaktsläde. Omgivningspåverkan använder samma modell bara
-  // för att föreslå ett värde; det faktiska beloppet skrivs in manuellt eftersom det
-  // varierar för mycket mellan projekt för att låsas till en formel.
-  const projekttidVeckor = p.projekttidVeckor || 0;
-  const etableringKostnad = projekttidVeckor * coef.krEtableringPerVecka;
-  const taKostnad = projekttidVeckor * coef.krTAPerVecka;
-  const omgivningspaverkanForeslaget = projekttidVeckor * coef.krOmgivningspaverkanPerVecka;
+  // Projekttiden räknas fram av systemet: schaktdagar + servis-/brunndagar + etablering och
+  // avetablering, delat på 5 arbetsdagar/vecka. Etablering (utrustning), TA och föreslagen
+  // omgivningspåverkan är kr/vecka x den tiden. Själva etablerings-/avetableringsarbetet är
+  // en fast kostnad per dag (utan grävmaskin) och räknas separat. Omgivningspåverkan kan
+  // skrivas in manuellt eftersom det varierar för mycket mellan projekt för en formel.
+  const produktionsDagar = ledningDagar + (p.servis || 0) * coef.dagServis + (p.brunnar || 0) * coef.dagBrunn;
+  // Ett projekt utan något arbete (inga dagar) har inget att etablera.
+  const etableringDagar = produktionsDagar > 0 ? (coef.dagarEtablering || 0) + (coef.dagarAvetablering || 0) : 0;
+  const projektVeckor = (produktionsDagar + etableringDagar) / 5;
+  const etableringKostnad = projektVeckor * coef.krEtableringPerVecka;
+  const etableringsarbeteKostnad = etableringDagar * (coef.krEtableringsdag || 0);
+  const taKostnad = projektVeckor * coef.krTAPerVecka;
+  const omgivningspaverkanForeslaget = projektVeckor * coef.krOmgivningspaverkanPerVecka;
   const omgivningspaverkanArKanda = p.omgivningspaverkanManuell != null;
   const omgivningspaverkanKostnad = omgivningspaverkanArKanda ? (p.omgivningspaverkanManuell as number) : omgivningspaverkanForeslaget;
   const driftposter = Array.isArray(p.driftposter) ? p.driftposter : [];
@@ -469,6 +488,7 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     besiktningKostnad +
     fritextTotal +
     etableringKostnad +
+    etableringsarbeteKostnad +
     taKostnad +
     omgivningspaverkanKostnad +
     driftTotal +
@@ -511,9 +531,18 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     { key: "besiktning", label: "Besiktning", value: besiktningKostnad },
     { key: "atersallning", label: "Återställning", value: atersallningKostnad },
     { key: "schaktslede", label: "Schaktsläde", value: schaktsledeKostnad },
-    { key: "etablering", label: "Etablering", value: etableringKostnad },
-    { key: "ta", label: "TA", value: taKostnad },
-    { key: "omgivningspaverkan", label: "Omgivningspåverkan" + (omgivningspaverkanArKanda ? "" : " (föreslaget värde)"), value: omgivningspaverkanKostnad },
+    // Etablering (utrustning), TA och föreslagen omgivningspåverkan följer projekttiden och
+    // är därför tidsdrivna; etableringsarbetet (fast antal dagar) och en manuellt ifylld
+    // omgivningspåverkan är det inte.
+    { key: "etablering", label: "Etablering (utrustning)", value: etableringKostnad, variable: etableringKostnad },
+    { key: "etableringsarbete", label: `Etablering/avetablering (${fmtInt(etableringDagar)} dagar)`, value: etableringsarbeteKostnad },
+    { key: "ta", label: "TA", value: taKostnad, variable: taKostnad },
+    {
+      key: "omgivningspaverkan",
+      label: "Omgivningspåverkan" + (omgivningspaverkanArKanda ? "" : " (föreslaget värde)"),
+      value: omgivningspaverkanKostnad,
+      variable: omgivningspaverkanArKanda ? 0 : omgivningspaverkanKostnad,
+    },
     // Fria, egna kostnadsposter - en rad per post, helt statiska (manuellt inskrivna belopp).
     ...fritextposter.map((f) => ({ key: `fritext-${f.id}`, label: f.namn || "Övrig kostnad", value: f.belopp || 0 })),
     ...driftposter.map((f) => ({ key: `drift-${f.id}`, label: `Driftkostnad: ${f.namn || "Övrigt"}`, value: f.belopp || 0 })),
@@ -535,6 +564,8 @@ export function calcProject(p: ProjectInput, coef: Coef, materialDB: MaterialRow
     arbetstimmar,
     antalPersoner,
     ledningDagar,
+    projektVeckor,
+    omgivningspaverkanForeslaget,
     // Summan av parts' `variable`-fält - så en ifylld känd kostnad (som inte längre är
     // tidsdriven) automatiskt utesluts, utan att dubbla den logiken här.
     tidsdrivenTotal: parts.reduce((a, pt) => a + (pt.variable ?? 0), 0),
@@ -601,7 +632,10 @@ export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit
   { group: "Övriga kostnader", path: "krBesiktning", label: "Per besiktning", unit: "kr/st" },
   { group: "Övriga kostnader", path: "krBrunn", label: "Per brunn (arbetsinsats)", unit: "kr/st" },
   { group: "Övriga kostnader", path: "krSchaktslede", label: "Schaktsläde (hyra)", unit: "kr/dag" },
-  { group: "Övriga kostnader", path: "krEtableringPerVecka", label: "Etablering", unit: "kr/vecka" },
+  { group: "Övriga kostnader", path: "dagarEtablering", label: "Etablering (antal dagar)", unit: "dagar" },
+  { group: "Övriga kostnader", path: "dagarAvetablering", label: "Avetablering (antal dagar)", unit: "dagar" },
+  { group: "Övriga kostnader", path: "krEtableringsdag", label: "Etablering/avetablering (arbete)", unit: "kr/dag" },
+  { group: "Övriga kostnader", path: "krEtableringPerVecka", label: "Etablering (utrustning)", unit: "kr/vecka" },
   { group: "Övriga kostnader", path: "krTAPerVecka", label: "TA (trafikanordning)", unit: "kr/vecka" },
   { group: "Övriga kostnader", path: "krOmgivningspaverkanPerVecka", label: "Omgivningspåverkan (föreslaget)", unit: "kr/vecka" },
   { group: "Övriga kostnader", path: "dagServis", label: "Dagar per servisanslutning", unit: "dag/st", step: "0.1" },
@@ -610,23 +644,60 @@ export const OVERRIDE_FIELDS: { group: string; path: string; label: string; unit
 ];
 
 /* ---------- Kalibrering ---------- */
-export function getCalibration(projects: { utfall?: number | null; prognosTotal?: number | null }[]): { factor: number; n: number } {
-  const done = projects.filter((p) => p.utfall && p.prognosTotal);
-  if (done.length === 0) return { factor: 1, n: 0 };
-  const ratios = done.map((p) => (p.utfall as number) / (p.prognosTotal as number));
-  const factor = ratios.reduce((a, b) => a + b, 0) / ratios.length;
-  return { factor, n: done.length };
+// Ett avslutat projekts bidrag till kalibreringen: utfallet och hur stor del av dess
+// (okalibrerade) prognos som var fast respektive tidsdriven.
+export interface CalibrationPoint {
+  utfall: number;
+  staticKr: number;
+  variableKr: number;
+}
+
+// Plockar ut kalibreringsunderlaget ur ett avslutat projekts frusna prognos. Snapshoten
+// är redan kalibrerad med den faktor som gällde när projektet skapades - den räknas bort
+// här (annars skulle kalibreringen jämföra utfallet mot en redan justerad prognos och
+// svänga fram och tillbaka). Projekt utan tidsdrivna poster i snapshoten (äldre rader
+// från innan `variable` fanns) ger inget underlag.
+export function calibrationPoint(utfall: number | null | undefined, snapshot: CalcResult | null | undefined): CalibrationPoint | null {
+  if (!utfall || utfall <= 0 || !snapshot || !Array.isArray(snapshot.parts)) return null;
+  const variableKr = snapshot.parts.reduce((a, pt) => a + (pt.variable ?? 0), 0);
+  if (variableKr <= 0) return null;
+  const applied = snapshot.kalibreringFaktor ?? (snapshot.calibration && snapshot.calibration.n > 0 ? snapshot.calibration.factor : 1);
+  const snapshotTotal = snapshot.parts.reduce((a, pt) => a + pt.value, 0);
+  return { utfall, staticKr: snapshotTotal - variableKr * applied, variableKr };
+}
+
+export function calibrationPointsFromRows(rows: { utfall?: number | null; prognos_snapshot?: unknown }[]): CalibrationPoint[] {
+  return rows.map((r) => calibrationPoint(r.utfall, r.prognos_snapshot as CalcResult | null)).filter((p): p is CalibrationPoint => p !== null);
+}
+
+// Hur mycket ett enskilt projekts utfall drar bort från 1 kommer att "lita på" - med få
+// projekt är snittet osäkert, så det dras mot 1 (n/(n+K): 1 projekt ≈ 33 %, 3 ≈ 60 %,
+// 10 ≈ 83 % av den observerade avvikelsen).
+const KALIBRERING_DAMPNING = 2;
+
+// Faktor för de tidsdrivna posterna. Varje avslutat projekt ger en implicit faktor
+// (utfall - fast del) / tidsdriven del, avgränsad till 0,5-2,0 mot enstaka extremvärden,
+// och snittas viktat efter hur stor den tidsdrivna delen var (stora projekt säger mer).
+export function getCalibration(points: CalibrationPoint[]): { factor: number; n: number } {
+  const rows = points
+    .filter((p) => p.utfall > 0 && p.variableKr > 0)
+    .map((p) => ({ f: Math.min(2, Math.max(0.5, (p.utfall - p.staticKr) / p.variableKr)), w: p.variableKr }));
+  if (rows.length === 0) return { factor: 1, n: 0 };
+  const sumW = rows.reduce((a, r) => a + r.w, 0);
+  const mean = rows.reduce((a, r) => a + r.f * r.w, 0) / sumW;
+  const n = rows.length;
+  return { factor: 1 + (mean - 1) * (n / (n + KALIBRERING_DAMPNING)), n };
 }
 
 export function calcProjectDisplay(
   p: ProjectInput,
   coef: Coef,
   materialDB: MaterialRow[],
-  projectsForCalibration: { utfall?: number | null; prognosTotal?: number | null }[]
+  projectsForCalibration: CalibrationPoint[]
 ): CalcResult {
   const raw = calcProject(p, coef, materialDB);
   const cal = getCalibration(projectsForCalibration);
-  if (!coef.calibrationEnabled || cal.n === 0) return { ...raw, calibration: cal };
+  if (!coef.calibrationEnabled || cal.n === 0) return { ...raw, calibration: cal, kalibreringFaktor: 1 };
   const f = cal.factor;
   // Bara den tidsdrivna delen av varje post (se `variable` på CalcPart - Arbetstid,
   // Maskinkostnad och tjänstedelen av Schaktkostnad) kalibreras mot utfall. Material,
@@ -649,6 +720,7 @@ export function calcProjectDisplay(
     ovrigtTotal,
     parts,
     calibration: cal,
+    kalibreringFaktor: f,
   };
 }
 

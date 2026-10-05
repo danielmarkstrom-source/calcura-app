@@ -3,8 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { rowToProjectInput } from "@/lib/projectRow";
 import {
   calcProjectDisplay,
+  calibrationPointsFromRows,
   deepMergeCoef,
   effCoef,
   DEFAULT_COEF,
@@ -226,7 +228,7 @@ async function getOrgCalcContext(supabase: Awaited<ReturnType<typeof createClien
   const [{ data: settingsRow }, { data: materialRowsData }, { data: projectsData }] = await Promise.all([
     supabase.from("org_settings").select("coef").eq("org_id", orgId).maybeSingle(),
     supabase.from("material_rows").select("*").eq("org_id", orgId),
-    supabase.from("projects").select("utfall, prognos_total").eq("org_id", orgId),
+    supabase.from("projects").select("utfall, prognos_snapshot").eq("org_id", orgId).not("utfall", "is", null),
   ]);
   const coef: Coef = { ...DEFAULT_COEF, ...((settingsRow?.coef as object) || {}) };
   const materialDB: MaterialRow[] = (materialRowsData || []).map((r) => ({
@@ -238,7 +240,7 @@ async function getOrgCalcContext(supabase: Awaited<ReturnType<typeof createClien
     co2PerM: r.co2_per_m,
     enhet: r.enhet,
   }));
-  const projectsForCalibration = (projectsData || []).map((p) => ({ utfall: p.utfall, prognosTotal: p.prognos_total }));
+  const projectsForCalibration = calibrationPointsFromRows(projectsData || []);
   return { coef, materialDB, projectsForCalibration };
 }
 
@@ -265,7 +267,6 @@ function parseProjectForm(formData: FormData) {
   const slantV = Number(formData.get("slantV") || 1);
   const antalPersoner = Number(formData.get("antalPersoner") || 3);
   const hyresdagarSchaktslede = Number(formData.get("hyresdagarSchaktslede") || 0);
-  const projekttidVeckor = Number(formData.get("projekttidVeckor") || 0);
 
   // Känd faktisk kostnad (valfri) - tomt fält = null = använd schablonen som vanligt.
   const tjansterManuellRaw = formData.get("tjansterManuell");
@@ -327,7 +328,6 @@ function parseProjectForm(formData: FormData) {
     antalPersoner,
     maskinpark,
     hyresdagarSchaktslede,
-    projekttidVeckor,
     poster,
     fritextposter,
     driftposter,
@@ -367,7 +367,6 @@ export async function createProject(formData: FormData) {
     antalPersoner,
     maskinpark,
     hyresdagarSchaktslede,
-    projekttidVeckor,
     poster,
     fritextposter,
     driftposter,
@@ -393,7 +392,6 @@ export async function createProject(formData: FormData) {
     antalPersoner,
     maskinpark,
     hyresdagarSchaktslede,
-    projekttidVeckor,
     fritextposter,
     driftposter,
     coefOverrides,
@@ -417,7 +415,6 @@ export async function createProject(formData: FormData) {
     antal_personer: antalPersoner,
     maskinpark,
     schaktslede_hyresdagar: hyresdagarSchaktslede,
-    projekttid_veckor: projekttidVeckor,
     fritextposter,
     driftposter,
     coef_overrides: coefOverrides,
@@ -471,7 +468,6 @@ export async function updateProject(id: string, formData: FormData) {
     antalPersoner,
     maskinpark,
     hyresdagarSchaktslede,
-    projekttidVeckor,
     poster,
     fritextposter,
     driftposter,
@@ -497,7 +493,6 @@ export async function updateProject(id: string, formData: FormData) {
     antalPersoner,
     maskinpark,
     hyresdagarSchaktslede,
-    projekttidVeckor,
     fritextposter,
     driftposter,
     coefOverrides,
@@ -521,7 +516,6 @@ export async function updateProject(id: string, formData: FormData) {
       antal_personer: antalPersoner,
       maskinpark,
       schaktslede_hyresdagar: hyresdagarSchaktslede,
-      projekttid_veckor: projekttidVeckor,
       fritextposter,
       driftposter,
       coef_overrides: coefOverrides,
@@ -542,6 +536,40 @@ export async function updateProject(id: string, formData: FormData) {
   revalidatePath("/");
   revalidatePath(`/projects/${id}`);
   redirect(`/projects/${id}`);
+}
+
+/**
+ * Räknar om ett pågående projekts frusna prognos med nuvarande koefficienter, projektets
+ * egna överstyrningar och aktuell kalibrering från avslutade projekt. Medveten, manuell
+ * åtgärd (RecalcButton) - globala ändringar ska aldrig slå igenom i tysthet. Anropas direkt
+ * från klienten, som själv kör router.refresh().
+ */
+export async function recalcProject(id: string): Promise<{ error?: string; before?: number; after?: number }> {
+  const supabase = await createClient();
+  const orgId = await requireOrgId(supabase);
+
+  const { data: project } = await supabase.from("projects").select("*").eq("id", id).eq("org_id", orgId).maybeSingle();
+  if (!project) return { error: "Hittade inte projektet." };
+  if (project.status !== "pagaende") return { error: "Bara pågående projekt kan räknas om." };
+
+  const { coef, materialDB, projectsForCalibration } = await getOrgCalcContext(supabase, orgId);
+  const calc = calcProjectDisplay(
+    rowToProjectInput(project),
+    effCoef(coef, { coefOverrides: project.coef_overrides }),
+    materialDB,
+    projectsForCalibration,
+  );
+
+  const { error } = await supabase
+    .from("projects")
+    .update({ prognos_total: calc.total, prognos_snapshot: calc })
+    .eq("id", id)
+    .eq("org_id", orgId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/");
+  revalidatePath(`/projects/${id}`);
+  return { before: Number(project.prognos_total || 0), after: calc.total };
 }
 
 /** Registrerar faktisk slutkostnad och markerar projektet avslutat. */

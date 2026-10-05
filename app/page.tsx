@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { formatKr, getCalibration, DEFAULT_COEF, type CalcResult, type Coef } from "@/lib/calc";
+import { formatKr, calibrationPointsFromRows, getCalibration, DEFAULT_COEF, type CalcResult, type Coef } from "@/lib/calc";
 import AppHeader from "@/components/AppHeader";
 import ClickableRow from "@/components/ClickableRow";
 
@@ -54,7 +54,7 @@ export default async function DashboardPage() {
   const avslutade = list.filter((p) => p.utfall);
   const avvList = avslutade.map((p) => ((p.utfall - (p.prognos_total || 0)) / (p.prognos_total || 1)) * 100);
   const snitt = avvList.length ? avvList.reduce((a, b) => a + b, 0) / avvList.length : null;
-  const calibration = getCalibration(list.map((p) => ({ utfall: p.utfall, prognosTotal: p.prognos_total })));
+  const calibration = getCalibration(calibrationPointsFromRows(list));
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-[var(--paper)]">
@@ -152,7 +152,7 @@ export default async function DashboardPage() {
               <>
                 <div className="text-lg font-bold text-[var(--ink)]">{calibration.factor.toFixed(2)}×</div>
                 <div className="mt-0.5 text-[11px] text-[var(--muted-2)]">
-                  {calibration.n} avslutade projekt · icke-materialposter {calibration.factor >= 1 ? "höjs" : "sänks"}{" "}
+                  {calibration.n} avslutade projekt · tidsdrivna poster {calibration.factor >= 1 ? "höjs" : "sänks"}{" "}
                   {Math.abs((calibration.factor - 1) * 100).toFixed(0)}%
                 </div>
               </>

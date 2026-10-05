@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { calcProjectDisplay, computeFramdrift, effCoef, formatKr, fmtInt, DEFAULT_COEF, type Coef, type MaterialRow, type CalcResult } from "@/lib/calc";
+import { rowToProjectInput } from "@/lib/projectRow";
+import { calcProjectDisplay, calibrationPointsFromRows, computeFramdrift, getCalibration, effCoef, formatKr, fmtInt, DEFAULT_COEF, type Coef, type MaterialRow, type CalcResult } from "@/lib/calc";
 import AppHeader from "@/components/AppHeader";
 import UtfallForm from "@/components/UtfallForm";
 import FramdriftForm from "@/components/FramdriftForm";
 import RemoveFramdriftButton from "@/components/RemoveFramdriftButton";
+import RecalcButton from "@/components/RecalcButton";
 import { deleteProject } from "@/app/actions";
 
 export default async function ProjectDetailPage({ params }: PageProps<"/projects/[id]">) {
@@ -42,11 +44,13 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
   // koefficienter/kalibrering ska INTE ändra redan sparade projekts prognos retroaktivt).
   // Äldre/ofullständiga rader utan snapshot räknas fram en gång som fallback.
   let calc = project.prognos_snapshot as CalcResult | null;
+  const needsCalibration = !calc || project.status === "pagaende";
+  const { data: calibrationRows } = needsCalibration
+    ? await supabase.from("projects").select("utfall, prognos_snapshot").eq("org_id", orgId).not("utfall", "is", null)
+    : { data: null };
+  const calibrationPoints = calibrationPointsFromRows(calibrationRows || []);
   if (!calc) {
-    const [{ data: materialRowsData }, { data: projectsData }] = await Promise.all([
-      supabase.from("material_rows").select("*").eq("org_id", orgId),
-      supabase.from("projects").select("utfall, prognos_total").eq("org_id", orgId),
-    ]);
+    const { data: materialRowsData } = await supabase.from("material_rows").select("*").eq("org_id", orgId);
     const materialDB: MaterialRow[] = (materialRowsData || []).map((r) => ({
       id: r.id,
       slag: r.slag,
@@ -56,35 +60,16 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
       co2PerM: r.co2_per_m,
       enhet: r.enhet,
     }));
-    const projectsForCalibration = (projectsData || []).map((p) => ({ utfall: p.utfall, prognosTotal: p.prognos_total }));
-    calc = calcProjectDisplay(
-      {
-        poster: project.poster,
-        arstid: project.arstid,
-        servis: project.servis,
-        intrang: project.intrang,
-        besiktning: project.besiktning,
-        brunnar: project.antal_brunnar,
-        schaktdjup: project.schaktdjup,
-        schaktbredd: project.schaktbredd,
-        slantH: project.slant_h,
-        slantV: project.slant_v,
-        antalPersoner: project.antal_personer,
-        maskinpark: project.maskinpark,
-        hyresdagarSchaktslede: project.schaktslede_hyresdagar,
-        projekttidVeckor: project.projekttid_veckor,
-        fritextposter: project.fritextposter,
-        driftposter: project.driftposter,
-        coefOverrides: project.coef_overrides,
-        tjansterManuell: project.tjanster_manuell,
-        intrangManuell: project.intrang_manuell,
-        omgivningspaverkanManuell: project.omgivningspaverkan_manuell,
-      },
-      effectiveCoef,
-      materialDB,
-      projectsForCalibration
-    );
+    calc = calcProjectDisplay(rowToProjectInput(project), effectiveCoef, materialDB, calibrationPoints);
   }
+
+  // Har kalibreringen (från avslutade projekt) ändrats sedan prognosen räknades?
+  const nowFactor = effectiveCoef.calibrationEnabled ? getCalibration(calibrationPoints).factor : 1;
+  const usedFactor = calc.kalibreringFaktor ?? 1;
+  const recalcHint =
+    project.status === "pagaende" && Math.abs(nowFactor - usedFactor) > 0.005
+      ? `Kalibreringen har ändrats (${usedFactor.toFixed(2)}× → ${nowFactor.toFixed(2)}×) sedan prognosen räknades.`
+      : undefined;
 
   const avvikelse = project.utfall ? ((project.utfall - (project.prognos_total || 0)) / (project.prognos_total || 1)) * 100 : null;
   const fd =
@@ -117,6 +102,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
               Redigera projekt
             </Link>
           )}
+          {project.status === "pagaende" && <RecalcButton projectId={project.id} hint={recalcHint} />}
 
           <div className="mt-4 grid grid-cols-2 gap-3 rounded-md bg-[var(--navy)] p-4 text-white sm:grid-cols-4">
             <div>

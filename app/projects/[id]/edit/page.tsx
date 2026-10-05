@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DEFAULT_COEF, type Coef, type MaterialRow } from "@/lib/calc";
+import { DEFAULT_COEF, calibrationPointsFromRows, type Coef, type MaterialRow } from "@/lib/calc";
 import AppHeader from "@/components/AppHeader";
 import ProjectForm from "@/components/ProjectForm";
 
@@ -41,7 +41,7 @@ export default async function EditProjectPage({ params }: PageProps<"/projects/[
       .order("slag")
       .order("material")
       .order("dimension"),
-    supabase.from("projects").select("utfall, prognos_total").eq("org_id", orgId),
+    supabase.from("projects").select("utfall, prognos_snapshot").eq("org_id", orgId).not("utfall", "is", null),
   ]);
 
   const coef: Coef = { ...DEFAULT_COEF, ...((settingsRow?.coef as object) || {}) };
@@ -54,7 +54,7 @@ export default async function EditProjectPage({ params }: PageProps<"/projects/[
     co2PerM: r.co2_per_m,
     enhet: r.enhet,
   }));
-  const calibrationProjects = (projectsData || []).map((p) => ({ utfall: p.utfall, prognosTotal: p.prognos_total }));
+  const calibrationProjects = calibrationPointsFromRows(projectsData || []);
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-[var(--paper)]">
@@ -83,7 +83,6 @@ export default async function EditProjectPage({ params }: PageProps<"/projects/[
               antalPersoner: project.antal_personer,
               maskinpark: project.maskinpark || [],
               hyresdagarSchaktslede: project.schaktslede_hyresdagar,
-              projekttidVeckor: project.projekttid_veckor,
               poster: project.poster || [],
               fritextposter: project.fritextposter || [],
               driftposter: project.driftposter || [],
